@@ -13,7 +13,7 @@ export const feedRoutes: FastifyPluginAsync = async (app) => {
     const rssTitles = await Promise.all(
       entries.map(([id]) =>
         rssService.fetchFeedXml(id)
-          .then((rss) => rss.title)
+          .then((rss) => rss?.title)
           .catch(() => undefined),
       ),
     );
