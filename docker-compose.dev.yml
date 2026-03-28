@@ -1,0 +1,10 @@
+services:
+  podsync:
+    image: mxpv/podsync:latest
+    container_name: podsync
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

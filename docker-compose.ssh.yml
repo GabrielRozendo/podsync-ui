@@ -1,0 +1,29 @@
+services:
+  # SSH mode: podsync-ui manages a remote podsync instance via SSH
+  podsync-ui:
+    build: .
+    container_name: podsync-ui
+    volumes:
+      - sidecar-config:/app/sidecar-config
+      # Mount SSH key if using key-based auth
+      # - ~/.ssh/id_rsa:/app/ssh/id_rsa:ro
+    ports:
+      - "3000:3000"
+    environment:
+      - PODSYNC_MODE=ssh
+      - PODSYNC_CONTAINER_NAME=podsync
+      # Remote paths on the SSH host
+      - PODSYNC_CONFIG_PATH=/home/user/podsync/config/config.toml
+      - PODSYNC_DATA_DIR=/home/user/podsync/data
+      # SSH connection
+      - SSH_HOST=192.168.1.100
+      - SSH_PORT=22
+      - SSH_USERNAME=user
+      # Use password OR key (uncomment one)
+      - SSH_PASSWORD=your_password
+      # - SSH_KEY_PATH=/app/ssh/id_rsa
+      # - SSH_KEY_PASSPHRASE=
+    restart: unless-stopped
+
+volumes:
+  sidecar-config:

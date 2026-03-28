@@ -1,0 +1,36 @@
+{
+  "name": "podsync-ui",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @podsync-ui/server\" \"npm run dev -w @podsync-ui/client\"",
+    "dev:server": "npm run dev -w @podsync-ui/server",
+    "dev:client": "npm run dev -w @podsync-ui/client",
+    "build": "npm run build -w @podsync-ui/shared && npm run build -w @podsync-ui/server && npm run build -w @podsync-ui/client",
+    "build:shared": "npm run build -w @podsync-ui/shared",
+    "build:server": "npm run build -w @podsync-ui/server",
+    "build:client": "npm run build -w @podsync-ui/client",
+    "typecheck": "tsc --build",
+    "lint": "npm run lint:ts && npm run lint:css",
+    "lint:ts": "eslint 'packages/*/src/**/*.{ts,tsx}'",
+    "lint:css": "stylelint 'packages/client/src/**/*.css'",
+    "lint:fix": "eslint --fix 'packages/*/src/**/*.{ts,tsx}' && stylelint --fix 'packages/client/src/**/*.css'",
+    "format": "prettier --write 'packages/*/src/**/*.{ts,tsx,css}'",
+    "format:check": "prettier --check 'packages/*/src/**/*.{ts,tsx,css}'"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "prettier": "^3.8.1",
+    "stylelint": "^17.6.0",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-config-tailwindcss": "^1.0.1",
+    "typescript-eslint": "^8.57.2"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@podsync-ui/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/session": "^11.1.1",
+    "@fastify/static": "^8.1.0",
+    "@podsync-ui/shared": "*",
+    "@types/ssh2": "^1.15.5",
+    "bcrypt": "^5.1.1",
+    "dockerode": "^4.0.4",
+    "dotenv": "^16.4.0",
+    "fastify": "^5.2.0",
+    "music-metadata": "^10.6.0",
+    "ssh2": "^1.17.0",
+    "toml-patch": "^0.2.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/dockerode": "^3.3.31",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}
