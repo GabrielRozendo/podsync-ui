@@ -126,7 +126,7 @@ class MetadataService {
         channelName: json.channel || json.uploader || '',
         fetchedAt: new Date().toISOString(),
       };
-    } catch (err: any) {
+    } catch {
       // Store a minimal entry so we don't retry constantly
       this.cache[videoId] = {
         videoId,

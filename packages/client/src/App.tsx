@@ -16,6 +16,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/feeds" element={<FeedsPage />} />
+        <Route path="/feeds/new" element={<FeedDetailPage />} />
         <Route path="/feeds/:id" element={<EpisodesPage />} />
         <Route path="/feeds/:id/settings" element={<FeedDetailPage />} />
         <Route path="/tokens" element={<TokensPage />} />
