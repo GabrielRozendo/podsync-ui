@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { FeedConfig } from '@podsync-ui/shared';
 
-export type FeedWithId = FeedConfig & { id: string };
+export type FeedWithId = FeedConfig & { id: string; rssTitle?: string };
 
 export function useFeeds() {
   return useQuery<FeedWithId[]>({

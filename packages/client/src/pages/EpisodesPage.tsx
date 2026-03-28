@@ -322,6 +322,9 @@ export default function EpisodesPage() {
           </Link>
           <h2 className="text-3xl font-bold tracking-tight">
             {data?.feedTitle || id}
+            {data?.feedTitle && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">({id})</span>
+            )}
           </h2>
           {data && <Badge variant="secondary">{data.total} episodes</Badge>}
           {metaStatus && metaStatus.queued > 0 && (

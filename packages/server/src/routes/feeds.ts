@@ -1,14 +1,27 @@
 import { FastifyPluginAsync } from 'fastify';
 import { tomlService } from '../services/toml.service.js';
+import { rssService } from '../services/rss.service.js';
 
 export const feedRoutes: FastifyPluginAsync = async (app) => {
-  // List all feeds
+  // List all feeds (enriched with RSS title)
   app.get('/feeds', async () => {
     const config = await tomlService.read();
     const feeds = config.feeds || {};
-    return Object.entries(feeds).map(([id, feed]) => ({
+    const entries = Object.entries(feeds);
+
+    // Fetch RSS titles in parallel
+    const rssTitles = await Promise.all(
+      entries.map(([id]) =>
+        rssService.fetchFeedXml(id)
+          .then((rss) => rss.title)
+          .catch(() => undefined),
+      ),
+    );
+
+    return entries.map(([id, feed], i) => ({
       id,
       ...feed,
+      rssTitle: rssTitles[i],
     }));
   });
 

@@ -96,7 +96,10 @@ export default function FeedsPage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-base">
-                        {feed.custom?.title || feed.id}
+                        {feed.rssTitle || feed.custom?.title || feed.id}
+                        {(feed.rssTitle || feed.custom?.title) && (
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">({feed.id})</span>
+                        )}
                       </CardTitle>
                       <div className="flex gap-1">
                         <Badge variant="secondary">
