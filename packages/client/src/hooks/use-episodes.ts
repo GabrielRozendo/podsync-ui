@@ -75,6 +75,31 @@ export function useRefetchMetadata(feedId: string) {
   });
 }
 
+export function useUnavailableEpisodes(feedId: string, enabled: boolean = false) {
+  return useQuery<{
+    unavailable: any[];
+    unchecked: number;
+    totalOnDisk: number;
+    totalInRss: number;
+  }>({
+    queryKey: ['episodes', feedId, 'unavailable'],
+    queryFn: () => api.get(`/feeds/${feedId}/episodes/unavailable`),
+    enabled: !!feedId && enabled,
+  });
+}
+
+export function useCleanupUnavailable(feedId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<{ deleted: number; errors?: string[]; total: number }, Error, void>({
+    mutationFn: () =>
+      api.post(`/feeds/${feedId}/episodes/cleanup/unavailable`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episodes', feedId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
 export function useOrphanedEpisodes(feedId: string, enabled: boolean = false) {
   return useQuery<{
     orphaned: any[];

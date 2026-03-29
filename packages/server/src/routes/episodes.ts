@@ -288,6 +288,89 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
+  // Find unavailable episodes (not in RSS AND yt-dlp metadata fetch failed)
+  // These are files where the source video is confirmed gone
+  app.get<{
+    Params: { id: string };
+  }>('/feeds/:id/episodes/unavailable', async (request) => {
+    const { id } = request.params;
+
+    const [episodeList, rssFeed] = await Promise.all([
+      episodeService.listEpisodes(id, 1, 10000),
+      rssService.fetchFeedXml(id).catch(() => null),
+    ]);
+
+    const rssGuids = new Set(
+      rssFeed ? rssFeed.episodes.map((ep) => ep.guid) : [],
+    );
+
+    // Get metadata for all episodes
+    const allBaseNames = episodeList.episodes.map((ep) => ep.filename.replace(/\.[^.]+$/, ''));
+    const metadataMap = await metadataService.getMany(allBaseNames);
+
+    const unavailable = episodeList.episodes.filter((ep) => {
+      const baseName = ep.filename.replace(/\.[^.]+$/, '');
+      if (rssGuids.has(baseName)) return false; // Still in RSS — keep
+      const meta = metadataMap.get(baseName);
+      if (!meta) return false; // Not yet fetched — don't flag as unavailable
+      return !meta.title; // Fetched but failed — video is gone
+    });
+
+    // Count how many orphans haven't been checked yet
+    const unchecked = episodeList.episodes.filter((ep) => {
+      const baseName = ep.filename.replace(/\.[^.]+$/, '');
+      return !rssGuids.has(baseName) && !metadataMap.has(baseName);
+    }).length;
+
+    return {
+      unavailable,
+      unchecked,
+      totalOnDisk: episodeList.episodes.length,
+      totalInRss: rssFeed ? rssFeed.episodes.length : 0,
+    };
+  });
+
+  // Cleanup: delete unavailable episodes (not in RSS + yt-dlp failed)
+  app.post<{
+    Params: { id: string };
+  }>('/feeds/:id/episodes/cleanup/unavailable', async (request) => {
+    const { id } = request.params;
+
+    const [episodeList, rssFeed] = await Promise.all([
+      episodeService.listEpisodes(id, 1, 10000),
+      rssService.fetchFeedXml(id).catch(() => null),
+    ]);
+
+    const rssGuids = new Set(
+      rssFeed ? rssFeed.episodes.map((ep) => ep.guid) : [],
+    );
+
+    const allBaseNames = episodeList.episodes.map((ep) => ep.filename.replace(/\.[^.]+$/, ''));
+    const metadataMap = await metadataService.getMany(allBaseNames);
+
+    const toDelete = episodeList.episodes.filter((ep) => {
+      const baseName = ep.filename.replace(/\.[^.]+$/, '');
+      if (rssGuids.has(baseName)) return false;
+      const meta = metadataMap.get(baseName);
+      if (!meta) return false;
+      return !meta.title;
+    });
+
+    const files = getFileProvider();
+    let deleted = 0;
+    const errors: string[] = [];
+    for (const ep of toDelete) {
+      try {
+        await files.deleteFile(path.join(env.podsyncDataDir, id, ep.filename));
+        deleted++;
+      } catch (err: any) {
+        errors.push(`${ep.filename}: ${err.message}`);
+      }
+    }
+
+    return { deleted, errors, total: episodeList.episodes.length };
+  });
+
   // Metadata cache status
   app.get('/metadata/status', async () => {
     return metadataService.getStatus();

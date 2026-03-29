@@ -15,7 +15,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import {
   useEpisodes, useDeleteEpisode, useBulkDeleteEpisodes,
-  useCleanupAge, useCleanupKeepLast, useOrphanedEpisodes, useRefetchMetadata,
+  useCleanupAge, useCleanupKeepLast, useOrphanedEpisodes,
+  useUnavailableEpisodes, useCleanupUnavailable, useRefetchMetadata,
 } from '@/hooks/use-episodes';
 import { api } from '@/lib/api';
 import { useConfig } from '@/hooks/use-settings';
@@ -120,10 +121,13 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
   const [ageDays, setAgeDays] = useState(90);
   const [keepN, setKeepN] = useState(50);
   const [showOrphans, setShowOrphans] = useState(false);
+  const [showUnavailable, setShowUnavailable] = useState(false);
 
   const cleanupAge = useCleanupAge(feedId);
   const cleanupKeep = useCleanupKeepLast(feedId);
   const { data: orphanData, isLoading: orphansLoading } = useOrphanedEpisodes(feedId, showOrphans);
+  const { data: unavailableData, isLoading: unavailableLoading } = useUnavailableEpisodes(feedId, showUnavailable);
+  const cleanupUnavailable = useCleanupUnavailable(feedId);
   const bulkDelete = useBulkDeleteEpisodes(feedId);
 
   const handleCleanupAge = async () => {
@@ -148,6 +152,18 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
     }
   };
 
+  const handleDeleteUnavailable = async () => {
+    const result = await cleanupUnavailable.mutateAsync();
+    if (result.errors?.length) {
+      toast.warning(`Deleted ${result.deleted}, ${result.errors.length} failed`, {
+        description: result.errors.slice(0, 3).join('\n'),
+      });
+    } else {
+      toast.success(`Deleted ${result.deleted} unavailable episodes`);
+    }
+    setShowUnavailable(false);
+  };
+
   const handleDeleteOrphans = async () => {
     if (!orphanData?.orphaned.length) return;
     const filenames = orphanData.orphaned.map((e: any) => e.filename);
@@ -157,7 +173,7 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setShowOrphans(false); }}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setShowOrphans(false); setShowUnavailable(false); } }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Wrench className="mr-2 h-4 w-4" />
@@ -221,6 +237,50 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
                 </div>
                 <Button size="sm" variant="destructive" onClick={handleDeleteOrphans} disabled={bulkDelete.isPending}>
                   Delete all orphans
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Unavailable episodes (not in RSS + yt-dlp failed) */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Unavailable source videos</Label>
+            <p className="text-xs text-muted-foreground">Find files not in the feed where the source video is confirmed gone (yt-dlp lookup failed).</p>
+            {!showUnavailable ? (
+              <Button size="sm" variant="outline" onClick={() => setShowUnavailable(true)}>
+                Scan for unavailable
+              </Button>
+            ) : unavailableLoading ? (
+              <p className="text-sm text-muted-foreground">Scanning...</p>
+            ) : unavailableData?.unavailable.length === 0 ? (
+              <div className="space-y-1">
+                <p className="text-sm text-green-600">No unavailable episodes found.</p>
+                {(unavailableData?.unchecked ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {unavailableData!.unchecked} orphaned episode{unavailableData!.unchecked !== 1 ? 's' : ''} not yet checked by yt-dlp — metadata will be fetched in the background.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="text-sm">
+                    {unavailableData?.unavailable.length} unavailable ({formatBytes(unavailableData?.unavailable.reduce((s: number, e: any) => s + e.fileSizeBytes, 0) || 0)})
+                  </span>
+                </div>
+                {(unavailableData?.unchecked ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {unavailableData!.unchecked} more orphan{unavailableData!.unchecked !== 1 ? 's' : ''} still pending yt-dlp check.
+                  </p>
+                )}
+                <div className="max-h-32 overflow-y-auto text-xs font-mono text-muted-foreground space-y-0.5">
+                  {unavailableData?.unavailable.map((e: any) => (
+                    <div key={e.filename}>{e.filename} ({formatBytes(e.fileSizeBytes)})</div>
+                  ))}
+                </div>
+                <Button size="sm" variant="destructive" onClick={handleDeleteUnavailable} disabled={cleanupUnavailable.isPending}>
+                  Delete all unavailable
                 </Button>
               </div>
             )}
