@@ -6,6 +6,11 @@ import { metadataService } from '../services/metadata.service.js';
 import { getFileProvider } from '../providers/index.js';
 import { env } from '../config/env.js';
 
+function isSafePath(base: string, ...segments: string[]): boolean {
+  const resolved = path.resolve(base, ...segments);
+  return resolved.startsWith(path.resolve(base) + path.sep);
+}
+
 export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // List episodes with RSS enrichment
   // Supports sorting via query: sort=size|date|pubDate, order=asc|desc
@@ -112,6 +117,9 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     Params: { id: string; filename: string };
   }>('/feeds/:id/episodes/:filename', async (request, reply) => {
     const { id, filename } = request.params;
+    if (!isSafePath(env.podsyncDataDir, id, filename)) {
+      return reply.status(400).send({ message: 'Invalid path' });
+    }
     const filePath = path.join(env.podsyncDataDir, id, filename);
     const files = getFileProvider();
 
@@ -141,6 +149,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     const errors: string[] = [];
 
     for (const filename of filenames) {
+      if (!isSafePath(env.podsyncDataDir, id, filename)) {
+        errors.push(filename);
+        continue;
+      }
       const filePath = path.join(env.podsyncDataDir, id, filename);
       try {
         await files.deleteFile(filePath);
@@ -166,6 +178,9 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const cutoff = new Date(Date.now() - olderThanDays * 86400 * 1000);
+    if (!isSafePath(env.podsyncDataDir, id)) {
+      return reply.status(400).send({ message: 'Invalid path' });
+    }
     const episodeList = await episodeService.listEpisodes(id, 1, 10000);
     const files = getFileProvider();
 
@@ -174,14 +189,17 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     );
 
     let deleted = 0;
+    const errors: string[] = [];
     for (const ep of toDelete) {
       try {
         await files.deleteFile(path.join(env.podsyncDataDir, id, ep.filename));
         deleted++;
-      } catch { /* skip */ }
+      } catch (err: any) {
+        errors.push(`${ep.filename}: ${err.message}`);
+      }
     }
 
-    return { deleted, total: episodeList.episodes.length };
+    return { deleted, errors, total: episodeList.episodes.length };
   });
 
   // Cleanup: keep only last N episodes (by download date, newest kept)
@@ -196,6 +214,9 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ message: 'keepLast must be >= 1' });
     }
 
+    if (!isSafePath(env.podsyncDataDir, id)) {
+      return reply.status(400).send({ message: 'Invalid path' });
+    }
     const episodeList = await episodeService.listEpisodes(id, 1, 10000);
     // Already sorted newest first by default
     const sorted = [...episodeList.episodes].sort(
@@ -206,14 +227,17 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     const files = getFileProvider();
 
     let deleted = 0;
+    const errors: string[] = [];
     for (const ep of toDelete) {
       try {
         await files.deleteFile(path.join(env.podsyncDataDir, id, ep.filename));
         deleted++;
-      } catch { /* skip */ }
+      } catch (err: any) {
+        errors.push(`${ep.filename}: ${err.message}`);
+      }
     }
 
-    return { deleted, kept: Math.min(keepLast, sorted.length), total: sorted.length };
+    return { deleted, errors, kept: Math.min(keepLast, sorted.length), total: sorted.length };
   });
 
   // Find orphaned episodes (on disk but not in RSS)
