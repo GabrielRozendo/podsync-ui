@@ -20,9 +20,13 @@ function maskTokens(tokens: TokensConfig): TokensConfig {
 }
 
 export const tokenRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/tokens', async () => {
+  app.get<{ Querystring: { unmask?: string } }>('/tokens', async (request) => {
     const config = await tomlService.read();
-    return maskTokens(config.tokens || {});
+    const tokens = config.tokens || {};
+    if (request.query.unmask === 'true') {
+      return tokens;
+    }
+    return maskTokens(tokens);
   });
 
   app.put<{ Body: TokensConfig }>('/tokens', async (request) => {

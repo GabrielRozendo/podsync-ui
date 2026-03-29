@@ -26,6 +26,14 @@ export function useTokens() {
   });
 }
 
+export function useUnmaskedTokens() {
+  return useQuery({
+    queryKey: ['tokens', 'unmasked'],
+    queryFn: () => api.get('/tokens?unmask=true'),
+    enabled: false,
+  });
+}
+
 export function useUpdateTokens() {
   const queryClient = useQueryClient();
   return useMutation({

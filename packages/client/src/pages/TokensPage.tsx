@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Save, Eye, EyeOff, Plus, X } from 'lucide-react';
-import { useTokens, useUpdateTokens } from '@/hooks/use-settings';
+import { useTokens, useUnmaskedTokens, useUpdateTokens } from '@/hooks/use-settings';
 import { toast } from 'sonner';
 import type { TokensConfig } from '@podsync-ui/shared';
 
@@ -18,11 +18,29 @@ const TOKEN_FIELDS: { key: keyof TokensConfig; label: string; description: strin
 
 export default function TokensPage() {
   const { data: tokens } = useTokens();
+  const { data: unmaskedTokens, refetch: fetchUnmasked } = useUnmaskedTokens();
   const updateMutation = useUpdateTokens();
   const [edits, setEdits] = useState<Record<string, string | string[]> | null>(null);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
 
-  const form = { ...(tokens as Record<string, string | string[]> || {}), ...edits };
+  // Merge: start with masked tokens, overlay unmasked values for visible fields, then user edits
+  const masked = (tokens as Record<string, string | string[]>) || {};
+  const unmasked = (unmaskedTokens as Record<string, string | string[]>) || {};
+  const revealed: Record<string, string | string[]> = {};
+  for (const field of TOKEN_FIELDS) {
+    const k = field.key;
+    if (unmasked[k] !== undefined) {
+      if (field.multi) {
+        // For multi fields, reveal if any sub-field is visible
+        const arr = Array.isArray(unmasked[k]) ? unmasked[k] as string[] : [unmasked[k] as string];
+        const maskedArr = Array.isArray(masked[k]) ? masked[k] as string[] : [masked[k] as string || ''];
+        revealed[k] = arr.map((v, i) => visible[`${k}-${i}`] ? v : (maskedArr[i] ?? v));
+      } else {
+        revealed[k] = visible[k] ? unmasked[k] : masked[k];
+      }
+    }
+  }
+  const form = { ...masked, ...revealed, ...edits };
 
   const handleSave = async () => {
     try {
@@ -76,7 +94,7 @@ export default function TokensPage() {
                       <div key={i} className="flex gap-2">
                         <div className="relative flex-1">
                           <Input
-                            type={visible[`${field.key}-${i}`] ? 'text' : 'password'}
+                            type="text"
                             value={val}
                             onChange={(e) => {
                               const arr = Array.isArray(form[field.key]) ? [...form[field.key] as string[]] : [form[field.key] as string || ''];
@@ -89,7 +107,11 @@ export default function TokensPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setVisible({ ...visible, [`${field.key}-${i}`]: !visible[`${field.key}-${i}`] })}
+                          onClick={() => {
+                            const key = `${field.key}-${i}`;
+                            if (!visible[key]) fetchUnmasked();
+                            setVisible({ ...visible, [key]: !visible[key] });
+                          }}
                         >
                           {visible[`${field.key}-${i}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
@@ -124,7 +146,7 @@ export default function TokensPage() {
                 ) : (
                   <div className="flex gap-2">
                     <Input
-                      type={visible[field.key] ? 'text' : 'password'}
+                      type="text"
                       value={(form[field.key] as string) || ''}
                       onChange={(e) => setEdits({ ...form, [field.key]: e.target.value })}
                       placeholder={`${field.label} API Key`}
@@ -133,7 +155,10 @@ export default function TokensPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setVisible({ ...visible, [field.key]: !visible[field.key] })}
+                      onClick={() => {
+                        if (!visible[field.key]) fetchUnmasked();
+                        setVisible({ ...visible, [field.key]: !visible[field.key] });
+                      }}
                     >
                       {visible[field.key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
