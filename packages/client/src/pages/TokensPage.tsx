@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Save, Eye, EyeOff, Plus, X } from 'lucide-react';
 import { useTokens, useUnmaskedTokens, useUpdateTokens } from '@/hooks/use-settings';
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { toast } from 'sonner';
 import type { TokensConfig } from '@podsync-ui/shared';
 
@@ -22,6 +23,7 @@ export default function TokensPage() {
   const updateMutation = useUpdateTokens();
   const [edits, setEdits] = useState<Record<string, string | string[]> | null>(null);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
+  useUnsavedChanges(edits !== null);
 
   // Merge: start with masked tokens, overlay unmasked values for visible fields, then user edits
   const masked = (tokens as Record<string, string | string[]>) || {};
@@ -44,9 +46,14 @@ export default function TokensPage() {
 
   const handleSave = async () => {
     try {
+      // Always fetch unmasked values so we never write masked tokens to config
+      const { data: real } = await fetchUnmasked();
+      const base = (real as Record<string, string | string[]>) || {};
+      const merged = { ...base, ...edits };
+
       // Filter out empty values
       const cleaned: Record<string, any> = {};
-      for (const [key, value] of Object.entries(form)) {
+      for (const [key, value] of Object.entries(merged)) {
         if (Array.isArray(value)) {
           const filtered = value.filter(Boolean);
           if (filtered.length) cleaned[key] = filtered;
@@ -55,6 +62,7 @@ export default function TokensPage() {
         }
       }
       await updateMutation.mutateAsync(cleaned);
+      setEdits(null);
       toast.success('Tokens updated');
     } catch (err: any) {
       toast.error(err.message);

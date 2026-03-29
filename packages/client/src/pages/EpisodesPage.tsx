@@ -10,12 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Trash2, ExternalLink,
-  Play, Pause, Settings, ArrowUpDown, AlertTriangle, Wrench, CheckSquare,
+  Play, Pause, Settings, ArrowUpDown, AlertTriangle, Wrench, CheckSquare, RefreshCw,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useEpisodes, useDeleteEpisode, useBulkDeleteEpisodes,
-  useCleanupAge, useCleanupKeepLast, useOrphanedEpisodes,
+  useCleanupAge, useCleanupKeepLast, useOrphanedEpisodes, useRefetchMetadata,
 } from '@/hooks/use-episodes';
 import { api } from '@/lib/api';
 import { useConfig } from '@/hooks/use-settings';
@@ -84,6 +84,36 @@ function EpisodeDeleteDialog({ episode, feedId }: { episode: Episode; feedId: st
   );
 }
 
+// --- Refetch Metadata Button ---
+function RefetchMetadataButton({ episode, feedId }: { episode: Episode; feedId: string }) {
+  const refetch = useRefetchMetadata(feedId);
+  const videoId = episode.filename.replace(/\.[^.]+$/, '');
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+      title="Re-fetch metadata from YouTube"
+      disabled={refetch.isPending}
+      onClick={() => {
+        refetch.mutate(videoId, {
+          onSuccess: (data) => {
+            if (data.title) {
+              toast.success(`Updated: ${data.title}`);
+            } else {
+              toast.error('yt-dlp could not fetch metadata');
+            }
+          },
+          onError: (err) => toast.error(err.message),
+        });
+      }}
+    >
+      <RefreshCw className={`h-3.5 w-3.5 ${refetch.isPending ? 'animate-spin' : ''}`} />
+    </Button>
+  );
+}
+
 // --- Cleanup Tools Dialog ---
 function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
   const [open, setOpen] = useState(false);
@@ -98,12 +128,24 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
 
   const handleCleanupAge = async () => {
     const result = await cleanupAge.mutateAsync(ageDays);
-    toast.success(`Deleted ${result.deleted} episodes older than ${ageDays} days`);
+    if (result.errors?.length) {
+      toast.warning(`Deleted ${result.deleted}, ${result.errors.length} failed`, {
+        description: result.errors.slice(0, 3).join('\n'),
+      });
+    } else {
+      toast.success(`Deleted ${result.deleted} episodes older than ${ageDays} days`);
+    }
   };
 
   const handleKeepLast = async () => {
     const result = await cleanupKeep.mutateAsync(keepN);
-    toast.success(`Deleted ${result.deleted} episodes, kept ${result.kept}`);
+    if (result.errors?.length) {
+      toast.warning(`Deleted ${result.deleted}, ${result.errors.length} failed`, {
+        description: result.errors.slice(0, 3).join('\n'),
+      });
+    } else {
+      toast.success(`Deleted ${result.deleted} episodes, kept ${result.kept}`);
+    }
   };
 
   const handleDeleteOrphans = async () => {
@@ -287,9 +329,9 @@ export default function EpisodesPage() {
     // For "select all across pages" we need to fetch all filenames first
     if (selectAll) {
       try {
-        const allEpisodes: any = await fetch(
-          `/api/feeds/${id}/episodes?page=1&pageSize=10000&sort=${sort}&order=${order}`,
-        ).then((r) => r.json());
+        const allEpisodes: any = await api.get(
+          `/feeds/${id}/episodes?page=1&pageSize=10000&sort=${sort}&order=${order}`,
+        );
         const allFilenames = allEpisodes.episodes.map((e: any) => e.filename);
         const result = await bulkDelete.mutateAsync(allFilenames);
         toast.success(`Deleted ${result.deleted} of ${result.total} episodes`);
@@ -474,7 +516,10 @@ export default function EpisodesPage() {
                       <TableCell className="text-right text-muted-foreground whitespace-nowrap">{formatDuration(ep.duration)}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">{ep.pubDate ? formatDate(ep.pubDate) : '--'}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(ep.modifiedAt)}</TableCell>
-                      <TableCell><EpisodeDeleteDialog episode={ep} feedId={id!} /></TableCell>
+                      <TableCell className="flex items-center gap-0.5">
+                        <RefetchMetadataButton episode={ep} feedId={id!} />
+                        <EpisodeDeleteDialog episode={ep} feedId={id!} />
+                      </TableCell>
                     </TableRow>
                   );
                 })}

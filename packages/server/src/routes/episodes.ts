@@ -24,8 +24,8 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     const sort = request.query.sort || 'date';
     const order = request.query.order || 'desc';
 
-    // Get all episodes (unpaginated) so we can sort with RSS data
-    const episodeList = await episodeService.listEpisodes(id, 1, 10000);
+    // Get all episodes (unpaginated, no duration probing) so we can sort with RSS data
+    const episodeList = await episodeService.listEpisodes(id, 1, 10000, { probeDuration: false });
     const rssFeed = await rssService.fetchFeedXml(id).catch(() => null);
 
     // Build guid-to-RSS map
@@ -101,6 +101,25 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     const total = enriched.length;
     const start = (page - 1) * pageSize;
     const episodes = enriched.slice(start, start + pageSize);
+
+    // Probe durations only for the current page (local mode only)
+    if (env.mode === 'local') {
+      const { createRequire } = await import('module');
+      const require = createRequire(import.meta.url);
+      const AUDIO_FORMATS = new Set(['mp3', 'm4a', 'ogg', 'opus', 'flac', 'wav', 'aac']);
+      for (const ep of episodes) {
+        if (AUDIO_FORMATS.has(ep.format)) {
+          try {
+            const mm: any = require('music-metadata');
+            const fullPath = path.join(env.podsyncDataDir, id, ep.filename);
+            const metadata = await mm.parseFile(fullPath);
+            ep.duration = metadata.format.duration;
+          } catch {
+            // Duration unavailable
+          }
+        }
+      }
+    }
 
     return {
       episodes,
@@ -272,5 +291,17 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // Metadata cache status
   app.get('/metadata/status', async () => {
     return metadataService.getStatus();
+  });
+
+  // Force re-fetch metadata for a specific episode
+  app.post<{
+    Params: { videoId: string };
+  }>('/metadata/:videoId/refetch', async (request, reply) => {
+    const { videoId } = request.params;
+    const result = await metadataService.refetch(videoId);
+    if (!result || !result.title) {
+      return reply.status(502).send({ message: 'yt-dlp failed to fetch metadata', metadata: result });
+    }
+    return result;
   });
 };

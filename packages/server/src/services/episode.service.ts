@@ -28,6 +28,7 @@ class EpisodeService {
     feedId: string,
     page: number = 1,
     pageSize: number = 50,
+    { probeDuration = true }: { probeDuration?: boolean } = {},
   ): Promise<EpisodeListResponse> {
     const feedDir = path.join(this.dataDir, feedId);
     const entries = await this.files.readdir(feedDir);
@@ -52,7 +53,7 @@ class EpisodeService {
     const episodes = allEpisodes.slice(start, start + pageSize);
 
     // Duration probing only works in local mode (needs file access)
-    if (env.mode === 'local') {
+    if (probeDuration && env.mode === 'local') {
       for (const ep of episodes) {
         if (['mp3', 'm4a', 'ogg', 'opus', 'flac', 'wav', 'aac'].includes(ep.format)) {
           try {
@@ -68,6 +69,37 @@ class EpisodeService {
     }
 
     return { episodes, total, page, pageSize };
+  }
+
+  async getPerFeedStats(): Promise<Map<string, { fileCount: number; sizeBytes: number; newestEpisode: string | null }>> {
+    const dirs = await this.listFeedDirectories();
+    const result = new Map<string, { fileCount: number; sizeBytes: number; newestEpisode: string | null }>();
+
+    for (const dir of dirs) {
+      const feedDir = path.join(this.dataDir, dir);
+      const entries = await this.files.readdir(feedDir);
+      let fileCount = 0;
+      let sizeBytes = 0;
+      let newest: Date | null = null;
+
+      for (const entry of entries) {
+        if (!entry.isDirectory && MEDIA_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+          fileCount++;
+          sizeBytes += entry.size;
+          if (!newest || entry.modifiedAt > newest) {
+            newest = entry.modifiedAt;
+          }
+        }
+      }
+
+      result.set(dir, {
+        fileCount,
+        sizeBytes,
+        newestEpisode: newest ? newest.toISOString() : null,
+      });
+    }
+
+    return result;
   }
 
   async getStorageStats(): Promise<{ totalFiles: number; totalSizeBytes: number }> {

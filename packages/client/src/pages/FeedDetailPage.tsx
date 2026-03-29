@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ArrowLeft, Trash2, Save } from 'lucide-react';
 import { useFeed, useUpdateFeed, useCreateFeed, useDeleteFeed } from '@/hooks/use-feeds';
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { toast } from 'sonner';
 import type { FeedConfig } from '@podsync-ui/shared';
 
@@ -35,6 +36,7 @@ export default function FeedDetailPage() {
     update_period: '12h',
   };
   const [edits, setEdits] = useState<Partial<FeedConfig> | null>(null);
+  useUnsavedChanges(edits !== null);
 
   // Merge server data with local edits
   const serverData = existingFeed
@@ -72,6 +74,7 @@ export default function FeedDetailPage() {
         navigate(`/feeds/${feedId}`);
       } else {
         await updateMutation.mutateAsync(form);
+        setEdits(null);
         toast.success('Feed updated');
       }
     } catch (err: any) {

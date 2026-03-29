@@ -45,6 +45,26 @@ export function useUpdateTokens() {
   });
 }
 
+export interface FeedHealthInfo {
+  id: string;
+  title: string;
+  format: string;
+  updatePeriod: string | null;
+  lastBuildDate: string | null;
+  episodesInRss: number | null;
+  episodesOnDisk: number;
+  sizeBytes: number;
+  newestEpisode: string | null;
+  stale: boolean;
+}
+
+export function useFeedHealth() {
+  return useQuery<FeedHealthInfo[]>({
+    queryKey: ['dashboard', 'feeds'],
+    queryFn: () => api.get('/dashboard/feeds'),
+  });
+}
+
 export function useConfig() {
   return useQuery<{ server?: { hostname?: string; port?: number } }>({
     queryKey: ['config'],

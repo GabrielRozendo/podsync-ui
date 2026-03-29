@@ -16,6 +16,7 @@ export interface RssFeed {
   title: string;
   description: string;
   imageUrl: string;
+  lastBuildDate: string;
   episodes: RssEpisode[];
 }
 
@@ -88,10 +89,12 @@ class RssService {
       };
     });
 
+    const channelHeader = channelXml.split('<item>')[0];
     return {
-      title: extractTag(channelXml.split('<item>')[0], 'title'),
-      description: extractTag(channelXml.split('<item>')[0], 'description'),
-      imageUrl: extractAttr(channelXml.split('<item>')[0], 'itunes:image', 'href'),
+      title: extractTag(channelHeader, 'title'),
+      description: extractTag(channelHeader, 'description'),
+      imageUrl: extractAttr(channelHeader, 'itunes:image', 'href'),
+      lastBuildDate: extractTag(channelHeader, 'lastBuildDate'),
       episodes,
     };
   }

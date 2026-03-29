@@ -43,7 +43,7 @@ export function useBulkDeleteEpisodes(feedId: string) {
 
 export function useCleanupAge(feedId: string) {
   const queryClient = useQueryClient();
-  return useMutation<{ deleted: number; total: number }, Error, number>({
+  return useMutation<{ deleted: number; errors?: string[]; total: number }, Error, number>({
     mutationFn: (olderThanDays) =>
       api.post(`/feeds/${feedId}/episodes/cleanup/age`, { olderThanDays }),
     onSuccess: () => {
@@ -55,12 +55,22 @@ export function useCleanupAge(feedId: string) {
 
 export function useCleanupKeepLast(feedId: string) {
   const queryClient = useQueryClient();
-  return useMutation<{ deleted: number; kept: number; total: number }, Error, number>({
+  return useMutation<{ deleted: number; errors?: string[]; kept: number; total: number }, Error, number>({
     mutationFn: (keepLast) =>
       api.post(`/feeds/${feedId}/episodes/cleanup/keep-last`, { keepLast }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['episodes', feedId] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useRefetchMetadata(feedId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<any, Error, string>({
+    mutationFn: (videoId) => api.post(`/metadata/${videoId}/refetch`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episodes', feedId] });
     },
   });
 }

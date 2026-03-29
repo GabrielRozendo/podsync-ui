@@ -126,7 +126,9 @@ class MetadataService {
         channelName: json.channel || json.uploader || '',
         fetchedAt: new Date().toISOString(),
       };
-    } catch {
+    } catch (err: any) {
+      console.error(`[metadata] yt-dlp failed for ${videoId}: ${err.message}`);
+      if (err.stderr) console.error(`[metadata] stderr: ${err.stderr}`);
       // Store a minimal entry so we don't retry constantly
       this.cache[videoId] = {
         videoId,
@@ -165,6 +167,15 @@ class MetadataService {
         // Best effort
       }
     }
+  }
+
+  // Force re-fetch metadata for a specific video, clearing any cached entry
+  async refetch(videoId: string): Promise<VideoMetadata | null> {
+    await this.loadCache();
+    delete this.cache[videoId];
+    await this.fetchOne(videoId);
+    await this.saveCache();
+    return this.cache[videoId] || null;
   }
 
   // Get queue status for the UI

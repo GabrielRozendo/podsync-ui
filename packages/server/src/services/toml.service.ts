@@ -32,30 +32,30 @@ class TomlService {
     return TOML.parse(raw) as PodsyncConfig;
   }
 
+  private async writeFromRaw(raw: string, config: PodsyncConfig): Promise<void> {
+    const tomlString = raw
+      ? TOML.patch(raw, config)
+      : TOML.stringify(config);
+    await this.files.writeFile(this.configPath, tomlString);
+  }
+
   async write(config: PodsyncConfig): Promise<void> {
     const raw = await this.readRaw();
-    let tomlString: string;
-
-    if (raw) {
-      tomlString = TOML.patch(raw, config);
-    } else {
-      tomlString = TOML.stringify(config);
-    }
-
-    await this.files.writeFile(this.configPath, tomlString);
+    await this.writeFromRaw(raw, config);
   }
 
   async updateSection<K extends keyof PodsyncConfig>(
     section: K,
     value: PodsyncConfig[K],
   ): Promise<PodsyncConfig> {
-    const config = await this.read();
+    const raw = await this.readRaw();
+    const config = raw ? (TOML.parse(raw) as PodsyncConfig) : {};
     if (value === undefined || value === null) {
       delete config[section];
     } else {
       (config as any)[section] = value;
     }
-    await this.write(config);
+    await this.writeFromRaw(raw, config);
     return config;
   }
 
@@ -65,19 +65,21 @@ class TomlService {
   }
 
   async setFeed(feedId: string, feed: any): Promise<PodsyncConfig> {
-    const config = await this.read();
+    const raw = await this.readRaw();
+    const config = raw ? (TOML.parse(raw) as PodsyncConfig) : {};
     if (!config.feeds) config.feeds = {};
     config.feeds[feedId] = feed;
-    await this.write(config);
+    await this.writeFromRaw(raw, config);
     return config;
   }
 
   async deleteFeed(feedId: string): Promise<PodsyncConfig> {
-    const config = await this.read();
+    const raw = await this.readRaw();
+    const config = raw ? (TOML.parse(raw) as PodsyncConfig) : {};
     if (config.feeds) {
       delete config.feeds[feedId];
     }
-    await this.write(config);
+    await this.writeFromRaw(raw, config);
     return config;
   }
 
