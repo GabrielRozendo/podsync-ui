@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Rss,
   Key,
+  KeyRound,
   Settings,
   Shield,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/feeds', icon: Rss, label: 'Feeds' },
   { to: '/tokens', icon: Key, label: 'API Tokens' },
+  { to: '/api-keys', icon: KeyRound, label: 'API Keys' },
   { to: '/settings', icon: Settings, label: 'Settings' },
   { to: '/auth', icon: Shield, label: 'Authentication' },
 ];

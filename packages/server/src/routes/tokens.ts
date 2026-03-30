@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { tomlService } from '../services/toml.service.js';
 import type { TokensConfig } from '@podsync-ui/shared';
+import { requireScope } from '../middleware/scope.guard.js';
 
 function maskToken(token: string): string {
   if (token.length <= 8) return '****';
@@ -20,7 +21,10 @@ function maskTokens(tokens: TokensConfig): TokensConfig {
 }
 
 export const tokenRoutes: FastifyPluginAsync = async (app) => {
-  app.get<{ Querystring: { unmask?: string } }>('/tokens', async (request) => {
+  app.get<{ Querystring: { unmask?: string } }>('/tokens', {
+    schema: { tags: ['Tokens'], summary: 'Get API tokens (masked by default)' },
+    preHandler: requireScope('tokens:read'),
+  }, async (request) => {
     const config = await tomlService.read();
     const tokens = config.tokens || {};
     if (request.query.unmask === 'true') {
@@ -29,7 +33,10 @@ export const tokenRoutes: FastifyPluginAsync = async (app) => {
     return maskTokens(tokens);
   });
 
-  app.put<{ Body: TokensConfig }>('/tokens', async (request) => {
+  app.put<{ Body: TokensConfig }>('/tokens', {
+    schema: { tags: ['Tokens'], summary: 'Update API tokens' },
+    preHandler: requireScope('tokens:write'),
+  }, async (request) => {
     await tomlService.updateSection('tokens', request.body);
     return maskTokens(request.body);
   });

@@ -1,8 +1,12 @@
 import { FastifyPluginAsync } from 'fastify';
 import { dockerService } from '../services/docker.service.js';
+import { requireScope } from '../middleware/scope.guard.js';
 
 export const applyRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/apply', async (request, reply) => {
+  app.post('/apply', {
+    schema: { tags: ['Docker'], summary: 'Apply config changes and restart container' },
+    preHandler: requireScope('docker:write'),
+  }, async (request, reply) => {
     try {
       await dockerService.restart();
       return { success: true, message: 'Configuration applied and container restarted' };

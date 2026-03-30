@@ -2,10 +2,14 @@ import { FastifyPluginAsync } from 'fastify';
 import { tomlService } from '../services/toml.service.js';
 import { episodeService } from '../services/episode.service.js';
 import { rssService } from '../services/rss.service.js';
+import { requireScope } from '../middleware/scope.guard.js';
 
 export const configRoutes: FastifyPluginAsync = async (app) => {
   // Full parsed config (with tokens masked)
-  app.get('/config', async () => {
+  app.get('/config', {
+    schema: { tags: ['Config'], summary: 'Get full config (tokens masked)' },
+    preHandler: requireScope('config:read'),
+  }, async () => {
     const config = await tomlService.read();
     // Mask tokens in the response
     if (config.tokens) {
@@ -25,13 +29,19 @@ export const configRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Raw TOML string
-  app.get('/config/raw', async () => {
+  app.get('/config/raw', {
+    schema: { tags: ['Config'], summary: 'Get raw TOML config string' },
+    preHandler: requireScope('config:read'),
+  }, async () => {
     const raw = await tomlService.readRaw();
     return { content: raw };
   });
 
   // Dashboard stats
-  app.get('/dashboard', async () => {
+  app.get('/dashboard', {
+    schema: { tags: ['Dashboard'], summary: 'Get dashboard stats' },
+    preHandler: requireScope('config:read'),
+  }, async () => {
     const config = await tomlService.read();
     const feedCount = config.feeds ? Object.keys(config.feeds).length : 0;
     const storageStats = await episodeService.getStorageStats();
@@ -44,7 +54,10 @@ export const configRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Per-feed health and storage stats
-  app.get('/dashboard/feeds', async () => {
+  app.get('/dashboard/feeds', {
+    schema: { tags: ['Dashboard'], summary: 'Get per-feed health and storage stats' },
+    preHandler: requireScope('feeds:read'),
+  }, async () => {
     const config = await tomlService.read();
     const feeds = config.feeds || {};
     const feedIds = Object.keys(feeds);

@@ -33,6 +33,15 @@ export type {
   LoginResponse,
 } from './types/auth.js';
 
+export type {
+  ApiKeyScope,
+  ApiKey,
+  ApiKeyCreateRequest,
+  ApiKeyCreateResponse,
+} from './types/api-key.js';
+
+export { API_KEY_SCOPES } from './types/api-key.js';
+
 export {
   podsyncConfigSchema,
   cleanupSchema,

@@ -5,6 +5,7 @@ import { rssService } from '../services/rss.service.js';
 import { metadataService } from '../services/metadata.service.js';
 import { getFileProvider } from '../providers/index.js';
 import { env } from '../config/env.js';
+import { requireScope } from '../middleware/scope.guard.js';
 
 function isSafePath(base: string, ...segments: string[]): boolean {
   const resolved = path.resolve(base, ...segments);
@@ -17,7 +18,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   app.get<{
     Params: { id: string };
     Querystring: { page?: string; pageSize?: string; sort?: string; order?: string };
-  }>('/feeds/:id/episodes', async (request) => {
+  }>('/feeds/:id/episodes', {
+    schema: { tags: ['Episodes'], summary: 'List episodes for a feed (paginated)' },
+    preHandler: requireScope('episodes:read'),
+  }, async (request) => {
     const { id } = request.params;
     const page = parseInt(request.query.page || '1', 10);
     const pageSize = parseInt(request.query.pageSize || '50', 10);
@@ -134,7 +138,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // Delete single episode
   app.delete<{
     Params: { id: string; filename: string };
-  }>('/feeds/:id/episodes/:filename', async (request, reply) => {
+  }>('/feeds/:id/episodes/:filename', {
+    schema: { tags: ['Episodes'], summary: 'Delete a single episode' },
+    preHandler: requireScope('episodes:write'),
+  }, async (request, reply) => {
     const { id, filename } = request.params;
     if (!isSafePath(env.podsyncDataDir, id, filename)) {
       return reply.status(400).send({ message: 'Invalid path' });
@@ -155,7 +162,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   app.post<{
     Params: { id: string };
     Body: { filenames: string[] };
-  }>('/feeds/:id/episodes/bulk-delete', async (request, reply) => {
+  }>('/feeds/:id/episodes/bulk-delete', {
+    schema: { tags: ['Episodes'], summary: 'Bulk delete episodes' },
+    preHandler: requireScope('episodes:write'),
+  }, async (request, reply) => {
     const { id } = request.params;
     const { filenames } = request.body;
 
@@ -188,7 +198,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   app.post<{
     Params: { id: string };
     Body: { olderThanDays: number };
-  }>('/feeds/:id/episodes/cleanup/age', async (request, reply) => {
+  }>('/feeds/:id/episodes/cleanup/age', {
+    schema: { tags: ['Episodes'], summary: 'Delete episodes older than N days' },
+    preHandler: requireScope('episodes:write'),
+  }, async (request, reply) => {
     const { id } = request.params;
     const { olderThanDays } = request.body;
 
@@ -225,7 +238,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   app.post<{
     Params: { id: string };
     Body: { keepLast: number };
-  }>('/feeds/:id/episodes/cleanup/keep-last', async (request, reply) => {
+  }>('/feeds/:id/episodes/cleanup/keep-last', {
+    schema: { tags: ['Episodes'], summary: 'Keep only last N episodes' },
+    preHandler: requireScope('episodes:write'),
+  }, async (request, reply) => {
     const { id } = request.params;
     const { keepLast } = request.body;
 
@@ -262,7 +278,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // Find orphaned episodes (on disk but not in RSS)
   app.get<{
     Params: { id: string };
-  }>('/feeds/:id/episodes/orphaned', async (request) => {
+  }>('/feeds/:id/episodes/orphaned', {
+    schema: { tags: ['Episodes'], summary: 'Find orphaned episodes (on disk but not in RSS)' },
+    preHandler: requireScope('episodes:read'),
+  }, async (request) => {
     const { id } = request.params;
 
     const [episodeList, rssFeed] = await Promise.all([
@@ -292,7 +311,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // These are files where the source video is confirmed gone
   app.get<{
     Params: { id: string };
-  }>('/feeds/:id/episodes/unavailable', async (request) => {
+  }>('/feeds/:id/episodes/unavailable', {
+    schema: { tags: ['Episodes'], summary: 'Find unavailable episodes (source video gone)' },
+    preHandler: requireScope('episodes:read'),
+  }, async (request) => {
     const { id } = request.params;
 
     const [episodeList, rssFeed] = await Promise.all([
@@ -333,7 +355,10 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // Cleanup: delete unavailable episodes (not in RSS + yt-dlp failed)
   app.post<{
     Params: { id: string };
-  }>('/feeds/:id/episodes/cleanup/unavailable', async (request) => {
+  }>('/feeds/:id/episodes/cleanup/unavailable', {
+    schema: { tags: ['Episodes'], summary: 'Delete unavailable episodes' },
+    preHandler: requireScope('episodes:write'),
+  }, async (request) => {
     const { id } = request.params;
 
     const [episodeList, rssFeed] = await Promise.all([
@@ -372,14 +397,20 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Metadata cache status
-  app.get('/metadata/status', async () => {
+  app.get('/metadata/status', {
+    schema: { tags: ['Episodes'], summary: 'Get metadata cache status' },
+    preHandler: requireScope('episodes:read'),
+  }, async () => {
     return metadataService.getStatus();
   });
 
   // Force re-fetch metadata for a specific episode
   app.post<{
     Params: { videoId: string };
-  }>('/metadata/:videoId/refetch', async (request, reply) => {
+  }>('/metadata/:videoId/refetch', {
+    schema: { tags: ['Episodes'], summary: 'Re-fetch metadata for a video' },
+    preHandler: requireScope('episodes:write'),
+  }, async (request, reply) => {
     const { videoId } = request.params;
     const result = await metadataService.refetch(videoId);
     if (!result || !result.title) {

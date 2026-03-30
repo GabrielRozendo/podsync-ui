@@ -5,9 +5,11 @@ import cors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
 import fastifySession from '@fastify/session';
 import fastifyStatic from '@fastify/static';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import { env } from './config/env.js';
 import { authService } from './services/auth.service.js';
-import { authMiddleware } from './middleware/auth.middleware.js';
+import { apiKeyService } from './services/api-key.service.js';
 import { healthRoutes } from './routes/health.js';
 import { configRoutes } from './routes/config.js';
 import { feedRoutes } from './routes/feeds.js';
@@ -17,6 +19,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { dockerRoutes } from './routes/docker.js';
 import { authRoutes } from './routes/auth.js';
 import { applyRoutes } from './routes/apply.js';
+import { apiKeyRoutes } from './routes/api-keys.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,16 +51,64 @@ export async function buildApp() {
     },
   });
 
+  // OpenAPI / Swagger
+  await app.register(swagger, {
+    openapi: {
+      info: {
+        title: 'Podsync UI API',
+        description: 'Management API for Podsync — manage feeds, episodes, tokens, settings, and container lifecycle.',
+        version: '1.0.0',
+      },
+      components: {
+        securitySchemes: {
+          cookieAuth: {
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'podsync-ui-session',
+          },
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            description: 'API Key (psk_...)',
+          },
+        },
+      },
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+    },
+  });
+
+  await app.register(swaggerUi, {
+    routePrefix: '/api/docs',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true,
+    },
+  });
+
   // API Routes (grouped so auth hook applies to all)
   await app.register(async (api) => {
-    // Auth hook added directly on this scope (not as a plugin) so it
-    // applies to all routes registered in child plugins below.
+    // Auth + API key hook
     api.addHook('onRequest', async (request, reply) => {
-      const path = request.url;
-      if (path === '/api/auth/login' || path === '/api/health') {
+      const url = request.url.split('?')[0];
+
+      // Always allow these through
+      if (url === '/api/auth/login' || url === '/api/health' || url.startsWith('/api/docs')) {
         return;
       }
 
+      // Check API key first (works regardless of auth enabled/disabled)
+      const authHeader = request.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const result = await apiKeyService.validateKey(token);
+        if (result.valid) {
+          (request as any).apiKeyScopes = result.scopes;
+          return;
+        }
+        return reply.status(401).send({ message: 'Invalid API key' });
+      }
+
+      // Session auth only enforced when auth is enabled
       const enabled = await authService.isEnabled();
       if (!enabled) return;
 
@@ -75,6 +126,7 @@ export async function buildApp() {
     await api.register(dockerRoutes);
     await api.register(authRoutes);
     await api.register(applyRoutes);
+    await api.register(apiKeyRoutes);
   }, { prefix: '/api' });
 
   // Serve static files in production

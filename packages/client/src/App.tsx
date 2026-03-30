@@ -7,6 +7,7 @@ import EpisodesPage from './pages/EpisodesPage';
 import TokensPage from './pages/TokensPage';
 import SettingsPage from './pages/SettingsPage';
 import AuthPage from './pages/AuthPage';
+import ApiKeysPage from './pages/ApiKeysPage';
 import LoginPage from './pages/LoginPage';
 
 export const router = createBrowserRouter([
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: '/feeds/:id/settings', element: <FeedDetailPage /> },
       { path: '/tokens', element: <TokensPage /> },
       { path: '/settings', element: <SettingsPage /> },
+      { path: '/api-keys', element: <ApiKeysPage /> },
       { path: '/auth', element: <AuthPage /> },
     ],
   },

@@ -1,10 +1,14 @@
 import { FastifyPluginAsync } from 'fastify';
 import { tomlService } from '../services/toml.service.js';
 import { rssService } from '../services/rss.service.js';
+import { requireScope } from '../middleware/scope.guard.js';
 
 export const feedRoutes: FastifyPluginAsync = async (app) => {
   // List all feeds (enriched with RSS title)
-  app.get('/feeds', async () => {
+  app.get('/feeds', {
+    schema: { tags: ['Feeds'], summary: 'List all feeds' },
+    preHandler: requireScope('feeds:read'),
+  }, async () => {
     const config = await tomlService.read();
     const feeds = config.feeds || {};
     const entries = Object.entries(feeds);
@@ -26,7 +30,14 @@ export const feedRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Get single feed
-  app.get<{ Params: { id: string } }>('/feeds/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/feeds/:id', {
+    schema: {
+      tags: ['Feeds'],
+      summary: 'Get a single feed',
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+    preHandler: requireScope('feeds:read'),
+  }, async (request, reply) => {
     const { id } = request.params;
     const feed = await tomlService.getFeed(id);
     if (!feed) {
@@ -36,7 +47,10 @@ export const feedRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Create feed
-  app.post<{ Body: { id: string; [key: string]: any } }>('/feeds', async (request, reply) => {
+  app.post<{ Body: { id: string; [key: string]: any } }>('/feeds', {
+    schema: { tags: ['Feeds'], summary: 'Create a feed' },
+    preHandler: requireScope('feeds:write'),
+  }, async (request, reply) => {
     const { id, ...feedData } = request.body;
     if (!id) {
       return reply.status(400).send({ message: 'Feed ID is required' });
@@ -52,7 +66,10 @@ export const feedRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Update feed
-  app.put<{ Params: { id: string }; Body: Record<string, any> }>('/feeds/:id', async (request, reply) => {
+  app.put<{ Params: { id: string }; Body: Record<string, any> }>('/feeds/:id', {
+    schema: { tags: ['Feeds'], summary: 'Update a feed' },
+    preHandler: requireScope('feeds:write'),
+  }, async (request, reply) => {
     const { id } = request.params;
     const existing = await tomlService.getFeed(id);
     if (!existing) {
@@ -64,7 +81,10 @@ export const feedRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Delete feed
-  app.delete<{ Params: { id: string } }>('/feeds/:id', async (request, reply) => {
+  app.delete<{ Params: { id: string } }>('/feeds/:id', {
+    schema: { tags: ['Feeds'], summary: 'Delete a feed' },
+    preHandler: requireScope('feeds:write'),
+  }, async (request, reply) => {
     const { id } = request.params;
     const existing = await tomlService.getFeed(id);
     if (!existing) {
