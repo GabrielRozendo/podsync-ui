@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-interface PlayerState {
+export interface PlayerState {
   src: string;
   title: string;
   feedId: string;

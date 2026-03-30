@@ -29,7 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { KeyRound, Plus, Copy, Check, Trash2, Ban } from 'lucide-react';
+import { KeyRound, Plus, Copy, Check, Trash2, Ban, ExternalLink } from 'lucide-react';
 import { useApiKeys, useCreateApiKey, useRevokeApiKey, useDeleteApiKey } from '@/hooks/use-api-keys';
 import { toast } from 'sonner';
 import type { ApiKeyScope } from '@podsync-ui/shared';
@@ -105,6 +105,7 @@ export default function ApiKeysPage() {
   const [showKeyResult, setShowKeyResult] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // Create form state
   const [name, setName] = useState('');
@@ -203,6 +204,52 @@ export default function ApiKeysPage() {
           Create API Key
         </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">API Reference</CardTitle>
+          <CardDescription>
+            Use these URLs to interact with the API programmatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Base URL', value: `${window.location.origin}/api` },
+              { label: 'Swagger Docs', value: `${window.location.origin}/api/docs`, href: '/api/docs' },
+              { label: 'OpenAPI JSON', value: `${window.location.origin}/api/docs/json`, href: '/api/docs/json' },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">{item.label}</p>
+                  <code className="text-xs break-all">{item.value}</code>
+                </div>
+                <div className="flex shrink-0 gap-1 ml-2">
+                  {item.href && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                      <a href={item.href} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(item.value);
+                      setCopiedUrl(item.label);
+                      setTimeout(() => setCopiedUrl(null), 2000);
+                    }}
+                  >
+                    {copiedUrl === item.label ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

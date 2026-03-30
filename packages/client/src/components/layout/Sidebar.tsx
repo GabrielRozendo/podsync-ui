@@ -7,9 +7,11 @@ import {
   KeyRound,
   Settings,
   Shield,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import MiniPlayer from '@/components/player/MiniPlayer';
 
 const navItems = [
@@ -59,18 +61,32 @@ export default function Sidebar() {
         ))}
       </nav>
       <MiniPlayer />
-      {health?.version && (
-        <div className="border-t px-6 py-3">
-          <p className="text-xs text-muted-foreground">
-            Build: {health.version.commit}
-          </p>
-          {health.version.buildTime && (
+      <div className="border-t px-4 py-3 space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+          onClick={async () => {
+            await api.post('/auth/logout');
+            window.location.href = '/login';
+          }}
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
+        {health?.version && (
+          <div className="px-2">
             <p className="text-xs text-muted-foreground">
-              {new Date(health.version.buildTime).toLocaleDateString()}
+              Build: {health.version.commit}
             </p>
-          )}
-        </div>
-      )}
+            {health.version.buildTime && (
+              <p className="text-xs text-muted-foreground">
+                {new Date(health.version.buildTime).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
