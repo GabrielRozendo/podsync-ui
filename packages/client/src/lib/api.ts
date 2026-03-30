@@ -10,6 +10,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers,
   });
 
+  if (response.status === 401 && !path.startsWith('/auth')) {
+    window.location.href = '/login';
+    throw new Error('Authentication required');
+  }
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: response.statusText }));
     throw new Error(error.message || `Request failed: ${response.status}`);

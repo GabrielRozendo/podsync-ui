@@ -4,7 +4,7 @@ import { authService } from '../services/auth.service.js';
 export const authMiddleware: FastifyPluginAsync = async (app) => {
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url;
-    if (path === '/api/auth/login' || path === '/api/health') {
+    if (path === '/auth/login' || path === '/health') {
       return;
     }
 

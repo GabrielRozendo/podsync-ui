@@ -42,25 +42,40 @@ export async function buildApp() {
     cookie: {
       path: '/',
       httpOnly: true,
-      secure: env.nodeEnv === 'production',
+      secure: false,
       sameSite: 'strict',
       maxAge: 86400 * 7 * 1000, // 7 days in ms
     },
   });
 
-  // Auth middleware
-  await app.register(authMiddleware);
+  // API Routes (grouped so auth hook applies to all)
+  await app.register(async (api) => {
+    // Auth hook added directly on this scope (not as a plugin) so it
+    // applies to all routes registered in child plugins below.
+    api.addHook('onRequest', async (request, reply) => {
+      const path = request.url;
+      if (path === '/api/auth/login' || path === '/api/health') {
+        return;
+      }
 
-  // API Routes
-  await app.register(healthRoutes, { prefix: '/api' });
-  await app.register(configRoutes, { prefix: '/api' });
-  await app.register(feedRoutes, { prefix: '/api' });
-  await app.register(episodeRoutes, { prefix: '/api' });
-  await app.register(tokenRoutes, { prefix: '/api' });
-  await app.register(settingsRoutes, { prefix: '/api' });
-  await app.register(dockerRoutes, { prefix: '/api' });
-  await app.register(authRoutes, { prefix: '/api' });
-  await app.register(applyRoutes, { prefix: '/api' });
+      const enabled = await authService.isEnabled();
+      if (!enabled) return;
+
+      if (!request.session.authenticated) {
+        return reply.status(401).send({ message: 'Authentication required' });
+      }
+    });
+
+    await api.register(healthRoutes);
+    await api.register(configRoutes);
+    await api.register(feedRoutes);
+    await api.register(episodeRoutes);
+    await api.register(tokenRoutes);
+    await api.register(settingsRoutes);
+    await api.register(dockerRoutes);
+    await api.register(authRoutes);
+    await api.register(applyRoutes);
+  }, { prefix: '/api' });
 
   // Serve static files in production
   if (env.nodeEnv === 'production') {
