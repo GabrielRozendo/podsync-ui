@@ -33,9 +33,8 @@ docker build \
   --build-arg BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
   -t podsync-ui:latest .
 
-# Tag and push to local registry
-docker tag podsync-ui:latest 192.168.1.120:5000/homelab/podsync-ui:latest
-docker push 192.168.1.120:5000/homelab/podsync-ui:latest
+# The GitHub Actions workflow (docker-build.yml) builds and pushes to GHCR automatically
+# Image: ghcr.io/daleiii/podsync-ui:latest
 ```
 
 ## Project Structure

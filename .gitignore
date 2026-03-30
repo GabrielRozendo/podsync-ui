@@ -4,5 +4,6 @@ dist/
 *.local
 .DS_Store
 *.log
+*.tsbuildinfo
 sidecar-config/auth.json
 .claude/
