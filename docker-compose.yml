@@ -11,7 +11,7 @@ services:
 
   # Local mode: sidecar on the same host with bind mounts
   podsync-ui:
-    build: .
+    image: ghcr.io/daleiii/podsync-ui:latest
     container_name: podsync-ui
     volumes:
       - ./config:/app/config

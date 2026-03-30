@@ -38,13 +38,15 @@ Podsync UI runs as a Docker sidecar alongside your Podsync instance, providing a
 
 ## Quick Start
 
-### Docker Compose (Local Mode)
+Pull the pre-built image and run alongside Podsync:
+
+```bash
+mkdir -p config data
+```
 
 Create a `docker-compose.yml`:
 
 ```yaml
-version: '2.2'
-
 services:
   podsync:
     image: mxpv/podsync:latest
@@ -57,7 +59,7 @@ services:
     restart: unless-stopped
 
   podsync-ui:
-    image: 192.168.1.120:5000/homelab/podsync-ui:latest
+    image: ghcr.io/daleiii/podsync-ui:latest
     container_name: podsync-ui
     volumes:
       - ./config:/app/config
@@ -69,6 +71,8 @@ services:
     environment:
       - PODSYNC_MODE=local
       - PODSYNC_CONTAINER_NAME=podsync
+      - PODSYNC_CONFIG_PATH=/app/config/config.toml
+      - PODSYNC_DATA_DIR=/app/data
     depends_on:
       - podsync
     restart: unless-stopped
@@ -78,46 +82,10 @@ volumes:
 ```
 
 ```bash
-# Create config directory with a starter config
-mkdir -p config data
-# Start both containers
-docker-compose up -d
+docker compose up -d
 ```
 
 Open `http://localhost:3000` to access the UI.
-
-### With Traefik
-
-```yaml
-version: '2.2'
-
-services:
-  podsync-ui:
-    image: 192.168.1.120:5000/homelab/podsync-ui:latest
-    container_name: podsync-ui
-    volumes:
-      - /mnt/glusterfs/podsync/config.toml:/app/config/config.toml
-      - /mnt/glusterfs/podsync/data:/app/data:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/glusterfs/podsync-ui/config:/app/sidecar-config
-    environment:
-      - PODSYNC_MODE=local
-      - PODSYNC_CONTAINER_NAME=podsync
-      - PODSYNC_CONFIG_PATH=/app/config/config.toml
-      - PODSYNC_DATA_DIR=/app/data
-    networks:
-      - traefik_proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.podsync-ui-http.rule=Host(`podsync-ui.dale`)"
-      - "traefik.http.routers.podsync-ui-http.entrypoints=web"
-      - "traefik.http.services.podsync-ui-http-service.loadbalancer.server.port=3000"
-    restart: always
-
-networks:
-  traefik_proxy:
-    external: true
-```
 
 ### SSH Mode (Remote Podsync)
 
@@ -126,7 +94,7 @@ For managing a Podsync instance on a different host:
 ```yaml
 services:
   podsync-ui:
-    image: 192.168.1.120:5000/homelab/podsync-ui:latest
+    image: ghcr.io/daleiii/podsync-ui:latest
     container_name: podsync-ui
     volumes:
       - sidecar-config:/app/sidecar-config
@@ -211,7 +179,7 @@ All endpoints are prefixed with `/api`.
 ### Setup
 
 ```bash
-git clone <repo>
+git clone https://github.com/daleiii/podsync-ui.git
 cd podsync-ui
 npm install
 ```
@@ -263,9 +231,9 @@ podsync-ui/
 │           ├── lib/         # API client, utilities
 │           └── pages/       # Route pages
 ├── Dockerfile               # Multi-stage production build
-├── docker-compose.yml        # Local mode
-├── docker-compose.ssh.yml    # SSH mode
-└── docker-compose.dev.yml    # Dev (podsync only)
+├── docker-compose.yml        # Pre-built image (local mode)
+├── docker-compose.dev.yml    # Build from source (local mode)
+└── docker-compose.ssh.yml    # Pre-built image (SSH mode)
 ```
 
 ### Scripts
@@ -279,20 +247,21 @@ podsync-ui/
 | `npm run format` | Format code with Prettier |
 | `npm run typecheck` | TypeScript type checking |
 
-### Building the Docker Image
+### Docker (Build from Source)
+
+Use `docker-compose.dev.yml` to build the image locally instead of pulling from GHCR:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --build
+```
+
+Or build the image directly:
 
 ```bash
 docker build \
   --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) \
   --build-arg BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
   -t podsync-ui:latest .
-```
-
-### Pushing to Registry
-
-```bash
-docker tag podsync-ui:latest 192.168.1.120:5000/homelab/podsync-ui:latest
-docker push 192.168.1.120:5000/homelab/podsync-ui:latest
 ```
 
 ## Tech Stack
@@ -306,3 +275,7 @@ docker push 192.168.1.120:5000/homelab/podsync-ui:latest
 - **Docker**: dockerode (local), ssh2 (remote)
 - **Auth**: bcrypt, @fastify/session
 - **Monorepo**: npm workspaces
+
+## Related
+
+- [mxpv/podsync](https://github.com/mxpv/podsync) — the original Podsync project that this UI is built to manage

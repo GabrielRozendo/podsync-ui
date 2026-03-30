@@ -1,7 +1,7 @@
 services:
   # SSH mode: podsync-ui manages a remote podsync instance via SSH
   podsync-ui:
-    build: .
+    image: ghcr.io/daleiii/podsync-ui:latest
     container_name: podsync-ui
     volumes:
       - sidecar-config:/app/sidecar-config

@@ -8,3 +8,30 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+
+  # Development: build from local source
+  podsync-ui:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: dev
+        BUILD_TIME: ""
+    container_name: podsync-ui
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sidecar-config:/app/sidecar-config
+    ports:
+      - "3000:3000"
+    environment:
+      - PODSYNC_MODE=local
+      - PODSYNC_CONTAINER_NAME=podsync
+      - PODSYNC_CONFIG_PATH=/app/config/config.toml
+      - PODSYNC_DATA_DIR=/app/data
+    depends_on:
+      - podsync
+    restart: unless-stopped
+
+volumes:
+  sidecar-config:
