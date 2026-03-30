@@ -17,7 +17,7 @@ Podsync UI is a web management sidecar for Podsync — the tool that converts Yo
 npm run dev          # Start server + client with hot reload (concurrently)
 npm run dev:server   # Server only (tsx --watch)
 npm run dev:client   # Client only (vite)
-npm run build        # Build all: shared → client → server
+npm run build        # Build all: shared → server → client
 npm run lint         # ESLint (TS) + Stylelint (CSS)
 npm run lint:fix     # Auto-fix lint issues
 npm run format       # Prettier
@@ -56,8 +56,9 @@ packages/
     ├── pages/           # Dashboard, Feeds, FeedDetail, Episodes, Tokens, Settings, Auth, Login
     ├── components/
     │   ├── layout/      # AppShell, Sidebar (with version footer), StatusBar
+    │   ├── player/      # PlayerContext, MiniPlayer (audio playback)
     │   └── ui/          # shadcn/ui components (auto-generated, don't edit directly)
-    ├── hooks/           # React Query hooks (use-feeds, use-episodes, use-docker, use-settings)
+    ├── hooks/           # React Query hooks (use-feeds, use-episodes, use-docker, use-settings, use-player, use-toast, use-unsaved-changes)
     └── lib/             # api.ts (fetch wrapper), utils.ts (cn helper)
 ```
 
@@ -66,6 +67,8 @@ packages/
 - **TOML round-tripping**: `toml-patch` library preserves comments and formatting. The `TomlService` reads the raw TOML string, parses it, merges changes, and patches the original string. Atomic writes via `.tmp` + rename.
 - **Provider pattern**: Services use `getFileProvider()` and `getContainerManager()` from `providers/index.ts`, which returns local or SSH implementations based on `PODSYNC_MODE`.
 - **Session auth**: `@fastify/cookie` + `@fastify/session` (pure JS, no native deps). Session secret stored in `auth.json`. The `sodium-native` based `@fastify/secure-session` was removed because it requires native compilation that fails on Alpine.
+- **Router**: Uses `createBrowserRouter` (data router pattern) — required for `useBlocker` in the unsaved changes hook. Do NOT switch back to `BrowserRouter`.
+- **CI/CD**: `.github/workflows/docker-build.yml` is a manual-trigger workflow that builds and pushes the Docker image to `ghcr.io/daleiii/podsync-ui`.
 - **React state from server data**: Pages derive local form state from React Query data using the merge pattern (`const form = { ...serverData, ...localEdits }`). Do NOT use `useEffect` + `setState` to sync — the ESLint react-hooks plugin flags this.
 - **Token masking**: API always masks token values in GET responses (first 4 + `****` + last 4 chars).
 - **Client build**: The client `build` script runs only `vite build` (not `tsc`). TypeScript checking is separate via the `typecheck` script. The `@/` path alias resolves via Vite config, not tsc paths.
