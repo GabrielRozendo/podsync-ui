@@ -417,12 +417,12 @@ export default function EpisodesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Link to="/feeds">
             <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
           </Link>
-          <h2 className="text-3xl font-bold tracking-tight">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {data?.feedTitle || id}
             {data?.feedTitle && (
               <span className="ml-2 text-sm font-normal text-muted-foreground">({id})</span>
@@ -440,7 +440,7 @@ export default function EpisodesPage() {
           <Link to={`/feeds/${id}/settings`}>
             <Button variant="outline" size="sm">
               <Settings className="mr-2 h-4 w-4" />
-              Feed Settings
+              <span className="hidden sm:inline">Feed </span>Settings
             </Button>
           </Link>
         </div>
@@ -448,7 +448,7 @@ export default function EpisodesPage() {
 
       {/* Bulk action bar */}
       {hasSelection && (
-        <div className="flex items-center gap-3 bg-muted/50 rounded-md px-4 py-2">
+        <div className="flex flex-wrap items-center gap-2 bg-muted/50 rounded-md px-3 py-2 sm:gap-3 sm:px-4">
           <CheckSquare className="h-4 w-4 text-primary" />
           <span className="text-sm font-medium">
             {selectAll ? `All ${data?.total || 0}` : selected.size} selected
@@ -497,6 +497,7 @@ export default function EpisodesPage() {
           ) : data?.episodes.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground">No episodes downloaded yet.</div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -509,11 +510,11 @@ export default function EpisodesPage() {
                     />
                   </TableHead>
                   <SortHeader label="Episode" field="title" currentSort={sort} currentOrder={order} onSort={handleSort} />
-                  <TableHead className="w-20">Format</TableHead>
-                  <SortHeader label="Size" field="size" currentSort={sort} currentOrder={order} onSort={handleSort} className="w-20 text-right" />
-                  <TableHead className="w-20 text-right">Duration</TableHead>
-                  <SortHeader label="Published" field="pubDate" currentSort={sort} currentOrder={order} onSort={handleSort} className="w-28 whitespace-nowrap" />
-                  <SortHeader label="Downloaded" field="date" currentSort={sort} currentOrder={order} onSort={handleSort} className="w-28 whitespace-nowrap" />
+                  <TableHead className="hidden w-20 sm:table-cell">Format</TableHead>
+                  <SortHeader label="Size" field="size" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-20 text-right sm:table-cell" />
+                  <TableHead className="hidden w-20 text-right md:table-cell">Duration</TableHead>
+                  <SortHeader label="Published" field="pubDate" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-28 whitespace-nowrap md:table-cell" />
+                  <SortHeader label="Downloaded" field="date" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-28 whitespace-nowrap lg:table-cell" />
                   <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -567,15 +568,15 @@ export default function EpisodesPage() {
                             )}
                           </div>
                           {ep.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 max-w-xl cursor-default" title={ep.description}>{ep.description}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2 max-w-full sm:max-w-xl cursor-default" title={ep.description}>{ep.description}</p>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell><Badge variant="outline">{ep.format}</Badge></TableCell>
-                      <TableCell className="text-right text-muted-foreground whitespace-nowrap">{formatBytes(ep.fileSizeBytes)}</TableCell>
-                      <TableCell className="text-right text-muted-foreground whitespace-nowrap">{formatDuration(ep.duration)}</TableCell>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">{ep.pubDate ? formatDate(ep.pubDate) : '--'}</TableCell>
-                      <TableCell className="text-muted-foreground whitespace-nowrap">{formatDate(ep.modifiedAt)}</TableCell>
+                      <TableCell className="hidden sm:table-cell"><Badge variant="outline">{ep.format}</Badge></TableCell>
+                      <TableCell className="hidden text-right text-muted-foreground whitespace-nowrap sm:table-cell">{formatBytes(ep.fileSizeBytes)}</TableCell>
+                      <TableCell className="hidden text-right text-muted-foreground whitespace-nowrap md:table-cell">{formatDuration(ep.duration)}</TableCell>
+                      <TableCell className="hidden text-muted-foreground whitespace-nowrap md:table-cell">{ep.pubDate ? formatDate(ep.pubDate) : '--'}</TableCell>
+                      <TableCell className="hidden text-muted-foreground whitespace-nowrap lg:table-cell">{formatDate(ep.modifiedAt)}</TableCell>
                       <TableCell className="flex items-center gap-0.5">
                         <RefetchMetadataButton episode={ep} feedId={id!} />
                         <EpisodeDeleteDialog episode={ep} feedId={id!} />
@@ -585,6 +586,7 @@ export default function EpisodesPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

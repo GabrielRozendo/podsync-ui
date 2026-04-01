@@ -268,15 +268,16 @@ export default function ApiKeysPage() {
           ) : keys.length === 0 ? (
             <p className="text-sm text-muted-foreground">No API keys created yet.</p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Key</TableHead>
                   <TableHead>Scopes</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead className="hidden sm:table-cell">Created</TableHead>
                   <TableHead>Expires</TableHead>
-                  <TableHead>Last Used</TableHead>
+                  <TableHead className="hidden md:table-cell">Last Used</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -297,7 +298,7 @@ export default function ApiKeysPage() {
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{formatDate(key.createdAt)}</TableCell>
+                    <TableCell className="hidden text-sm sm:table-cell">{formatDate(key.createdAt)}</TableCell>
                     <TableCell className="text-sm">
                       {key.expiresAt ? (
                         <span className={isExpired(key.expiresAt) ? 'text-destructive' : ''}>
@@ -307,7 +308,7 @@ export default function ApiKeysPage() {
                         'Never'
                       )}
                     </TableCell>
-                    <TableCell className="text-sm">{formatDate(key.lastUsedAt)}</TableCell>
+                    <TableCell className="hidden text-sm md:table-cell">{formatDate(key.lastUsedAt)}</TableCell>
                     <TableCell>
                       {key.revoked ? (
                         <Badge variant="destructive">Revoked</Badge>
@@ -333,6 +334,7 @@ export default function ApiKeysPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

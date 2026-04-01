@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { MobileMenuButton } from './Sidebar';
 import type { ContainerStatus, RestartResponse } from '@podsync-ui/shared';
 import { toast } from 'sonner';
 
@@ -36,9 +37,10 @@ export default function StatusBar() {
   };
 
   return (
-    <div className="fixed right-0 top-0 z-40 flex h-16 items-center gap-4 border-b bg-card px-6" style={{ left: '16rem' }}>
+    <div className="fixed left-0 right-0 top-0 z-40 flex h-16 items-center gap-2 border-b bg-card px-3 sm:gap-4 sm:px-6 md:left-64">
+      <MobileMenuButton />
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Podsync:</span>
+        <span className="hidden text-sm text-muted-foreground sm:inline">Podsync:</span>
         <Badge variant="outline" className="gap-1.5">
           <span className={`h-2 w-2 rounded-full ${stateColor[status?.state || 'unknown']}`} />
           {status?.state || 'unknown'}
@@ -63,8 +65,8 @@ export default function StatusBar() {
           onClick={() => restartMutation.mutate()}
           disabled={restartMutation.isPending}
         >
-          <RefreshCw className={`mr-1 h-3 w-3 ${restartMutation.isPending ? 'animate-spin' : ''}`} />
-          {status?.restartNeeded ? 'Apply & Restart' : 'Restart'}
+          <RefreshCw className={`h-3 w-3 sm:mr-1 ${restartMutation.isPending ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">{status?.restartNeeded ? 'Apply & Restart' : 'Restart'}</span>
         </Button>
       </div>
     </div>

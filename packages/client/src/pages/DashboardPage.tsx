@@ -140,6 +140,7 @@ export default function DashboardPage() {
           ) : !feedHealth?.length ? (
             <div className="p-6 text-center text-muted-foreground">No feeds configured.</div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -191,6 +192,7 @@ export default function DashboardPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -214,7 +216,7 @@ export default function DashboardPage() {
                 return (
                   <div key={feed.id} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
-                      <Link to={`/feeds/${feed.id}`} className="hover:underline font-medium truncate max-w-[60%]">
+                      <Link to={`/feeds/${feed.id}`} className="hover:underline font-medium truncate max-w-[50%] sm:max-w-[60%]">
                         {feed.title}
                       </Link>
                       <span className="text-muted-foreground whitespace-nowrap ml-2">

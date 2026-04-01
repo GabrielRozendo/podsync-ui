@@ -103,12 +103,12 @@ export default function FeedDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Link to={isNew ? '/feeds' : `/feeds/${id}`}>
             <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
           </Link>
-          <h2 className="text-3xl font-bold tracking-tight">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {isNew ? 'New Feed' : `${form.custom?.title || id} Settings`}
           </h2>
         </div>
@@ -175,7 +175,7 @@ export default function FeedDetailPage() {
                   onChange={(e) => updateField('url', e.target.value)}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Format</Label>
                   <Select value={form.format || 'video'} onValueChange={(v) => updateField('format', v as any)}>
@@ -198,7 +198,7 @@ export default function FeedDetailPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="page_size">Page Size</Label>
                   <Input
@@ -235,7 +235,7 @@ export default function FeedDetailPage() {
           <Card>
             <CardHeader><CardTitle>Advanced Settings</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Playlist Sort</Label>
                   <Select value={form.playlist_sort || ''} onValueChange={(v) => updateField('playlist_sort', v as any || undefined)}>
@@ -327,7 +327,7 @@ export default function FeedDetailPage() {
           <Card>
             <CardHeader><CardTitle>Content Filters</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Title Match (regex)</Label>
                   <Input
@@ -345,7 +345,7 @@ export default function FeedDetailPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Description Match (regex)</Label>
                   <Input
@@ -364,7 +364,7 @@ export default function FeedDetailPage() {
                 </div>
               </div>
               <Separator />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Min Duration (seconds)</Label>
                   <Input
@@ -382,7 +382,7 @@ export default function FeedDetailPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Min Age (days)</Label>
                   <Input
@@ -408,7 +408,7 @@ export default function FeedDetailPage() {
           <Card>
             <CardHeader><CardTitle>Custom Metadata</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Title</Label>
                   <Input
@@ -432,7 +432,7 @@ export default function FeedDetailPage() {
                   rows={3}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Cover Art URL</Label>
                   <Input
@@ -454,7 +454,7 @@ export default function FeedDetailPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Input
@@ -471,7 +471,7 @@ export default function FeedDetailPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Owner Name</Label>
                   <Input

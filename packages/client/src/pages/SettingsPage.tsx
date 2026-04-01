@@ -72,7 +72,7 @@ export default function SettingsPage() {
             {({ data, update }) => (
               <>
                 <CardHeader className="p-0 pb-4"><CardTitle>Server Settings</CardTitle></CardHeader>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Port</Label>
                     <Input
@@ -90,7 +90,7 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Bind Address</Label>
                     <Input
@@ -129,7 +129,7 @@ export default function SettingsPage() {
                   ))}
                 </div>
                 {data.tls && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Certificate Path</Label>
                       <Input
@@ -184,7 +184,7 @@ export default function SettingsPage() {
                         onChange={(e) => update({ ...data, s3: { ...data.s3, endpoint_url: e.target.value } })}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Region</Label>
                         <Input
@@ -275,7 +275,7 @@ export default function SettingsPage() {
                     onChange={(e) => update({ ...data, filename: e.target.value || undefined })}
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Max Size (MB)</Label>
                     <Input type="number" value={data.max_size || ''} onChange={(e) => update({ ...data, max_size: parseInt(e.target.value) || undefined })} />
