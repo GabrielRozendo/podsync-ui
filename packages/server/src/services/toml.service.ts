@@ -1,4 +1,6 @@
 import { createRequire } from 'module';
+import fs from 'fs/promises';
+import path from 'path';
 import { env } from '../config/env.js';
 import { getFileProvider } from '../providers/index.js';
 import type { PodsyncConfig } from '@podsync-ui/shared';
@@ -33,7 +35,20 @@ class TomlService {
     return TOML.parse(raw) as PodsyncConfig;
   }
 
+  private async backup(): Promise<void> {
+    if (!env.tomlBackupEnabled) return;
+    const content = await this.readRaw();
+    if (!content) return;
+    const dir = path.join(env.sidecarConfigDir, 'backups');
+    await fs.mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/:/g, '-').replace('T', '_').slice(0, 19);
+    const dest = path.join(dir, `config-${stamp}.toml`);
+    await fs.writeFile(dest, content, 'utf-8');
+    console.info(`[toml] Backup saved: ${dest}`);
+  }
+
   private async writeFromRaw(raw: string, config: PodsyncConfig): Promise<void> {
+    await this.backup();
     const tomlString = raw
       ? TOML.patch(raw, config)
       : TOML.stringify(config);

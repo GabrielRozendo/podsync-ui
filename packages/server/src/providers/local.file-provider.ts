@@ -10,7 +10,20 @@ export class LocalFileProvider implements FileProvider {
   async writeFile(filePath: string, content: string): Promise<void> {
     const tmpPath = filePath + '.tmp';
     await fs.writeFile(tmpPath, content, 'utf-8');
-    await fs.rename(tmpPath, filePath);
+    try {
+      await fs.rename(tmpPath, filePath);
+    } catch (err: any) {
+      if (err.code === 'EBUSY' || err.code === 'EXDEV') {
+        // EBUSY: file locked by another process (e.g. Podsync reading it)
+        // EXDEV: cross-device rename (different mount points)
+        // Fall back to non-atomic overwrite
+        await fs.copyFile(tmpPath, filePath);
+        await fs.unlink(tmpPath).catch(() => {});
+      } else {
+        await fs.unlink(tmpPath).catch(() => {});
+        throw err;
+      }
+    }
   }
 
   async stat(filePath: string): Promise<{ size: number; mtime: Date } | null> {

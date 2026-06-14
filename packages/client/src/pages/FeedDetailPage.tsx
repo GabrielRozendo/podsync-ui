@@ -13,9 +13,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ArrowLeft, Trash2, Save } from 'lucide-react';
 import { useFeed, useUpdateFeed, useCreateFeed, useDeleteFeed } from '@/hooks/use-feeds';
+import { useSettings } from '@/hooks/use-settings';
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { toast } from 'sonner';
-import type { FeedConfig } from '@podsync-ui/shared';
+import type { CleanupConfig, FeedConfig } from '@podsync-ui/shared';
 
 export default function FeedDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,14 +24,16 @@ export default function FeedDetailPage() {
   const isNew = id === 'new';
 
   const { data: existingFeed, isLoading } = useFeed(isNew ? '' : id!);
+  const { data: globalCleanup } = useSettings<CleanupConfig>('cleanup');
   const updateMutation = useUpdateFeed(id!);
   const createMutation = useCreateFeed();
   const deleteMutation = useDeleteFeed();
 
   const [feedId, setFeedId] = useState('');
-  const defaults: Partial<FeedConfig> = {
+  // Defaults only apply to new feeds — for existing feeds we use exactly what's in the TOML
+  const newFeedDefaults: Partial<FeedConfig> = {
     url: '',
-    format: 'audio',
+    format: 'video',
     quality: 'high',
     page_size: 50,
     update_period: '12h',
@@ -38,11 +41,13 @@ export default function FeedDetailPage() {
   const [edits, setEdits] = useState<Partial<FeedConfig> | null>(null);
   useUnsavedChanges(edits !== null);
 
-  // Merge server data with local edits
+  // For existing feeds: start from server data only — no client defaults that could mask real values
   const serverData = existingFeed
     ? (({ id: _existingId, ...rest }) => rest)(existingFeed)
     : null;
-  const form = { ...defaults, ...serverData, ...edits } as Partial<FeedConfig>;
+  const form = isNew
+    ? { ...newFeedDefaults, ...edits } as Partial<FeedConfig>
+    : { ...serverData, ...edits } as Partial<FeedConfig>;
 
   const updateField = <K extends keyof FeedConfig>(key: K, value: FeedConfig[K]) => {
     setEdits((prev) => ({ ...prev, [key]: value }));
@@ -178,8 +183,13 @@ export default function FeedDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Format</Label>
-                  <Select value={form.format || 'video'} onValueChange={(v) => updateField('format', v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Select
+                    value={form.format ?? ''}
+                    onValueChange={(v) => updateField('format', v as any)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Not set (Podsync default: video)" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="audio">Audio</SelectItem>
                       <SelectItem value="video">Video</SelectItem>
@@ -311,13 +321,24 @@ export default function FeedDetailPage() {
                 <Input
                   id="keep_last"
                   type="number"
-                  placeholder="Global default"
-                  value={form.clean?.keep_last || ''}
+                  placeholder={
+                    globalCleanup?.keep_last != null
+                      ? `Inherited from global (${globalCleanup.keep_last})`
+                      : 'Inherited from global (not set)'
+                  }
+                  value={form.clean?.keep_last ?? ''}
                   onChange={(e) => {
                     const val = parseInt(e.target.value);
                     updateField('clean', val ? { keep_last: val } : undefined);
                   }}
                 />
+                {form.clean?.keep_last == null && (
+                  <p className="text-xs text-muted-foreground">
+                    {globalCleanup?.keep_last != null
+                      ? `Using global policy: keep last ${globalCleanup.keep_last} episodes. Set a value here to override per-feed.`
+                      : 'No cleanup policy set globally or for this feed — all episodes are kept.'}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

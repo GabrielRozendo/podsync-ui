@@ -26,4 +26,7 @@ export const env = {
   // Build info
   gitCommit: process.env.GIT_COMMIT || 'dev',
   buildTime: process.env.BUILD_TIME || '',
+
+  // TOML backup: create a timestamped backup in sidecarConfigDir/backups/ before any write
+  tomlBackupEnabled: process.env.TOML_BACKUP_ENABLED === 'true',
 } as const;
