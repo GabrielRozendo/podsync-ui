@@ -39,17 +39,24 @@ export class LocalContainerManager implements ContainerManager {
       if (err.statusCode === 404) {
         return { state: 'stopped' as const };
       }
-      throw err;
+      // Socket not mounted, permission denied, or connection refused — degrade gracefully
+      const reason = err.code || err.message || String(err);
+      console.error(`[docker] Cannot reach Docker socket for container "${this.containerName}": ${reason}`);
+      return { state: 'unknown' as const };
     }
   }
 
   async restart(): Promise<void> {
     const container = this.docker.getContainer(this.containerName);
+    console.info(`[docker] Restarting container "${this.containerName}"...`);
     await container.restart({ t: 10 });
 
     for (let i = 0; i < 30; i++) {
       const info = await container.inspect();
-      if (info.State.Running) return;
+      if (info.State.Running) {
+        console.info(`[docker] Container "${this.containerName}" is running`);
+        return;
+      }
       await new Promise((r) => setTimeout(r, 1000));
     }
     throw new Error('Container did not start within 30 seconds');

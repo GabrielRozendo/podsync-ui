@@ -11,6 +11,7 @@ export const applyRoutes: FastifyPluginAsync = async (app) => {
       await dockerService.restart();
       return { success: true, message: 'Configuration applied and container restarted' };
     } catch (err: any) {
+      request.log.error({ err: err.message }, 'Failed to apply config and restart container');
       return reply.status(500).send({
         success: false,
         message: err.message || 'Failed to apply changes',

@@ -20,6 +20,7 @@ class TomlService {
       return await this.files.readFile(this.configPath);
     } catch (err: any) {
       if (err.code === 'ENOENT' || err.message?.includes('No such file')) {
+        console.warn(`[toml] Config file not found at "${this.configPath}" — returning empty config`);
         return '';
       }
       throw err;

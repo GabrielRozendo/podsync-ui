@@ -8,12 +8,16 @@ import type { ApiKeyScope } from '@podsync-ui/shared';
  */
 export function requireScope(scope: ApiKeyScope) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
+    // Auth disabled globally — all requests are implicitly authorized
+    if ((request as any).authBypassed) return;
+
     // Session users have full access
     if (request.session?.authenticated) return;
 
     // API key users must have the required scope
     const scopes = (request as any).apiKeyScopes as ApiKeyScope[] | undefined;
     if (!scopes) {
+      request.log.warn({ url: request.url, scope }, 'Scope check failed: no session or API key');
       return reply.status(403).send({ message: 'Insufficient permissions' });
     }
 

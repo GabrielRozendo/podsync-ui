@@ -8,6 +8,14 @@ async function main() {
   try {
     await app.listen({ port: env.port, host: '0.0.0.0' });
     app.log.info(`Podsync UI server running on port ${env.port}`);
+    app.log.info({
+      mode: env.mode,
+      configPath: env.podsyncConfigPath,
+      dataDir: env.podsyncDataDir,
+      containerName: env.podsyncContainerName,
+      sidecarConfigDir: env.sidecarConfigDir,
+      ...(env.mode === 'ssh' ? { sshHost: env.sshHost, sshPort: env.sshPort, sshUsername: env.sshUsername } : {}),
+    }, 'Runtime configuration');
 
     // Start yt-dlp auto-update (every 24h)
     metadataService.startAutoUpdate();

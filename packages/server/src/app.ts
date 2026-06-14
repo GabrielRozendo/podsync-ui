@@ -110,7 +110,10 @@ export async function buildApp() {
 
       // Session auth only enforced when auth is enabled
       const enabled = await authService.isEnabled();
-      if (!enabled) return;
+      if (!enabled) {
+        (request as any).authBypassed = true;
+        return;
+      }
 
       if (!request.session.authenticated) {
         return reply.status(401).send({ message: 'Authentication required' });
