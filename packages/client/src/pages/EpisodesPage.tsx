@@ -713,16 +713,15 @@ export default function EpisodesPage() {
                             {ep.title || ep.filename}
                           </button>
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* Filename → opens Podsync feed directory */}
+                            {/* Filename → direct link to the file */}
                             <a
-                              href={feedDirUrl}
+                              href={`${hostname}/${id}/${ep.filename}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-xs text-muted-foreground hover:text-blue-500 font-mono inline-flex items-center gap-0.5"
-                              title="Open feed folder in Podsync"
+                              className="text-xs text-muted-foreground hover:text-blue-500 font-mono"
+                              title="Open file"
                             >
-                              <FolderOpen className="h-3 w-3" />
                               {ep.filename}
                             </a>
                             {ep.episodeLink && (

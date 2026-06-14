@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Rss, HardDrive, FileAudio, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Rss, HardDrive, FileAudio, AlertTriangle, CheckCircle, ArrowUpDown } from 'lucide-react';
 import { useDockerStatus } from '@/hooks/use-docker';
 import { useDashboard, useFeedHealth } from '@/hooks/use-settings';
+import type { FeedHealthInfo } from '@/hooks/use-settings';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -34,10 +36,70 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+type SortField = 'title' | 'format' | 'lastBuildDate' | 'episodesInRss' | 'episodesOnDisk' | 'stale';
+
+function sortFeeds(feeds: FeedHealthInfo[], field: SortField, order: 'asc' | 'desc'): FeedHealthInfo[] {
+  const dir = order === 'asc' ? 1 : -1;
+  return [...feeds].sort((a, b) => {
+    switch (field) {
+      case 'title':
+        return (a.title || a.id).localeCompare(b.title || b.id) * dir;
+      case 'format':
+        return (a.format || '').localeCompare(b.format || '') * dir;
+      case 'lastBuildDate': {
+        const aT = a.lastBuildDate ? new Date(a.lastBuildDate).getTime() : 0;
+        const bT = b.lastBuildDate ? new Date(b.lastBuildDate).getTime() : 0;
+        return (aT - bT) * dir;
+      }
+      case 'episodesInRss':
+        return ((a.episodesInRss ?? -1) - (b.episodesInRss ?? -1)) * dir;
+      case 'episodesOnDisk':
+        return (a.episodesOnDisk - b.episodesOnDisk) * dir;
+      case 'stale':
+        return ((a.stale ? 1 : 0) - (b.stale ? 1 : 0)) * dir;
+      default:
+        return 0;
+    }
+  });
+}
+
+function SortableHead({
+  label, field, currentSort, currentOrder, onSort, className,
+}: {
+  label: string; field: SortField; currentSort: SortField; currentOrder: 'asc' | 'desc';
+  onSort: (f: SortField) => void; className?: string;
+}) {
+  const active = currentSort === field;
+  return (
+    <TableHead className={className}>
+      <button
+        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+        onClick={() => onSort(field)}
+      >
+        {label}
+        <ArrowUpDown className={`h-3 w-3 ${active ? 'text-foreground' : 'text-muted-foreground/40'}`} />
+        {active && <span className="text-[10px]">{currentOrder === 'asc' ? '↑' : '↓'}</span>}
+      </button>
+    </TableHead>
+  );
+}
+
 export default function DashboardPage() {
   const { data: status, isLoading: statusLoading } = useDockerStatus();
   const { data: dashboard, isLoading: dashLoading } = useDashboard();
   const { data: feedHealth, isLoading: healthLoading } = useFeedHealth();
+
+  const [healthSort, setHealthSort] = useState<SortField>('title');
+  const [healthOrder, setHealthOrder] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (healthSort === field) {
+      setHealthOrder((o) => o === 'asc' ? 'desc' : 'asc');
+    } else {
+      setHealthSort(field);
+      setHealthOrder('asc');
+    }
+  };
 
   const stateColors: Record<string, string> = {
     running: 'bg-green-500',
@@ -46,7 +108,7 @@ export default function DashboardPage() {
     unknown: 'bg-gray-500',
   };
 
-  // Sort feeds by size descending for the storage breakdown
+  const sortedHealth = feedHealth ? sortFeeds(feedHealth, healthSort, healthOrder) : [];
   const sortedBySize = feedHealth ? [...feedHealth].sort((a, b) => b.sizeBytes - a.sizeBytes) : [];
   const totalSize = sortedBySize.reduce((sum, f) => sum + f.sizeBytes, 0);
 
@@ -144,16 +206,16 @@ export default function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Feed</TableHead>
-                  <TableHead className="w-24">Format</TableHead>
-                  <TableHead className="w-28">Last Updated</TableHead>
-                  <TableHead className="w-20 text-right">In RSS</TableHead>
-                  <TableHead className="w-20 text-right">On Disk</TableHead>
-                  <TableHead className="w-20 text-right">Status</TableHead>
+                  <SortableHead label="Feed" field="title" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} />
+                  <SortableHead label="Format" field="format" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-24" />
+                  <SortableHead label="Last Updated" field="lastBuildDate" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-28" />
+                  <SortableHead label="In RSS" field="episodesInRss" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-20 text-right" />
+                  <SortableHead label="On Disk" field="episodesOnDisk" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-20 text-right" />
+                  <SortableHead label="Status" field="stale" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-20 text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {feedHealth.map((feed) => (
+                {sortedHealth.map((feed) => (
                   <TableRow key={feed.id}>
                     <TableCell>
                       <Link to={`/feeds/${feed.id}`} className="hover:underline font-medium">
