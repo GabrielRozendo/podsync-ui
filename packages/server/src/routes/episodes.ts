@@ -17,7 +17,7 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // Supports sorting via query: sort=size|date|pubDate, order=asc|desc
   app.get<{
     Params: { id: string };
-    Querystring: { page?: string; pageSize?: string; sort?: string; order?: string };
+    Querystring: { page?: string; pageSize?: string; sort?: string; order?: string; search?: string };
   }>('/feeds/:id/episodes', {
     schema: { tags: ['Episodes'], summary: 'List episodes for a feed (paginated)' },
     preHandler: requireScope('episodes:read'),
@@ -27,6 +27,7 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     const pageSize = parseInt(request.query.pageSize || '50', 10);
     const sort = request.query.sort || 'date';
     const order = request.query.order || 'desc';
+    const search = request.query.search?.trim().toLowerCase() || '';
 
     // Get all episodes (unpaginated, no duration probing) so we can sort with RSS data
     const episodeList = await episodeService.listEpisodes(id, 1, 10000, { probeDuration: false });
@@ -79,9 +80,17 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
       };
     });
 
+    // Filter by search term (title or description, post-enrichment)
+    const filtered = search
+      ? enriched.filter((ep) =>
+          (ep.title || ep.filename).toLowerCase().includes(search) ||
+          (ep.description || '').toLowerCase().includes(search),
+        )
+      : enriched;
+
     // Sort
     const dir = order === 'asc' ? 1 : -1;
-    enriched.sort((a, b) => {
+    filtered.sort((a, b) => {
       switch (sort) {
         case 'size':
           return (a.fileSizeBytes - b.fileSizeBytes) * dir;
@@ -102,17 +111,18 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     });
 
     // Paginate
-    const total = enriched.length;
+    const total = filtered.length;
     const start = (page - 1) * pageSize;
-    const episodes = enriched.slice(start, start + pageSize);
+    const episodes = filtered.slice(start, start + pageSize);
 
-    // Probe durations only for the current page (local mode only)
+    // Probe durations for the current page (local mode only)
+    // Includes audio and common video container formats supported by music-metadata
     if (env.mode === 'local') {
       const { createRequire } = await import('module');
       const require = createRequire(import.meta.url);
-      const AUDIO_FORMATS = new Set(['mp3', 'm4a', 'ogg', 'opus', 'flac', 'wav', 'aac']);
+      const PROBEABLE_FORMATS = new Set(['mp3', 'mp4', 'm4a', 'ogg', 'opus', 'flac', 'wav', 'aac', 'webm', 'mkv']);
       for (const ep of episodes) {
-        if (AUDIO_FORMATS.has(ep.format)) {
+        if (PROBEABLE_FORMATS.has(ep.format)) {
           try {
             const mm: any = require('music-metadata');
             const fullPath = path.join(env.podsyncDataDir, id, ep.filename);
@@ -394,6 +404,27 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return { deleted, errors, total: episodeList.episodes.length };
+  });
+
+  // Raw RSS XML proxy for a feed
+  app.get<{ Params: { id: string } }>('/feeds/:id/rss', {
+    schema: { tags: ['Episodes'], summary: 'Proxy raw RSS XML from Podsync for a feed' },
+    preHandler: requireScope('episodes:read'),
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const baseUrl = await rssService.getPodsyncBaseUrl();
+    const rssUrl = rssService.getRssUrl(baseUrl, id);
+    try {
+      const response = await fetch(rssUrl, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        return reply.status(502).send({ message: `Podsync returned ${response.status} for ${rssUrl}` });
+      }
+      const xml = await response.text();
+      reply.header('content-type', 'application/xml; charset=utf-8');
+      return reply.send(xml);
+    } catch (err: any) {
+      return reply.status(502).send({ message: `RSS fetch failed: ${err.message}`, url: rssUrl });
+    }
   });
 
   // Metadata cache status

@@ -1,5 +1,5 @@
 import { usePlayerContext } from './PlayerContext';
-import { Play, Pause, SkipBack, SkipForward, X } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 function formatTime(seconds: number): string {
@@ -12,7 +12,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function MiniPlayer() {
-  const { track, playing, currentTime, duration, togglePlayPause, seek, stop } = usePlayerContext();
+  const { track, playing, currentTime, duration, isVideo, togglePlayPause, seek, stop } = usePlayerContext();
 
   if (!track) return null;
 
@@ -21,9 +21,12 @@ export default function MiniPlayer() {
   return (
     <div className="border-t px-4 py-3 space-y-2">
       <div className="flex items-center justify-between gap-1">
-        <p className="text-xs font-medium truncate flex-1" title={track.title}>
-          {track.title}
-        </p>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {isVideo && <Video className="h-3 w-3 shrink-0 text-muted-foreground" />}
+          <p className="text-xs font-medium truncate" title={track.title}>
+            {track.title}
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="icon"

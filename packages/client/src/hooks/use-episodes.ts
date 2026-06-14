@@ -8,12 +8,25 @@ export function useEpisodes(
   pageSize: number = 50,
   sort: string = 'date',
   order: string = 'desc',
+  search: string = '',
 ) {
   return useQuery<EpisodeListResponse>({
-    queryKey: ['episodes', feedId, page, pageSize, sort, order],
-    queryFn: () =>
-      api.get(`/feeds/${feedId}/episodes?page=${page}&pageSize=${pageSize}&sort=${sort}&order=${order}`),
+    queryKey: ['episodes', feedId, page, pageSize, sort, order, search],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort, order });
+      if (search) params.set('search', search);
+      return api.get(`/feeds/${feedId}/episodes?${params}`);
+    },
     enabled: !!feedId,
+  });
+}
+
+export function useFeedRss(feedId: string, enabled: boolean = false) {
+  return useQuery<string>({
+    queryKey: ['feed-rss', feedId],
+    queryFn: () => api.getRaw(`/feeds/${feedId}/rss`),
+    enabled: !!feedId && enabled,
+    staleTime: 60_000,
   });
 }
 

@@ -48,23 +48,31 @@ function extractAttr(xml: string, tag: string, attr: string): string {
 }
 
 class RssService {
-  private async getPodsyncBaseUrl(): Promise<string> {
+  async getPodsyncBaseUrl(): Promise<string> {
     const config = await tomlService.read();
     return config.server?.hostname || `http://localhost:${config.server?.port || 8080}`;
   }
 
-  async fetchFeedXml(feedId: string): Promise<RssFeed | null> {
-    const baseUrl = await this.getPodsyncBaseUrl();
-    const xmlUrl = `${baseUrl}/${feedId}.xml`;
+  getRssUrl(baseUrl: string, feedId: string): string {
+    return `${baseUrl}/${feedId}.xml`;
+  }
 
+  async fetchRawXml(feedId: string): Promise<string | null> {
+    const baseUrl = await this.getPodsyncBaseUrl();
+    const xmlUrl = this.getRssUrl(baseUrl, feedId);
     try {
       const response = await fetch(xmlUrl, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) return null;
-      const xml = await response.text();
-      return this.parseXml(xml);
+      return response.text();
     } catch {
       return null;
     }
+  }
+
+  async fetchFeedXml(feedId: string): Promise<RssFeed | null> {
+    const xml = await this.fetchRawXml(feedId);
+    if (!xml) return null;
+    return this.parseXml(xml);
   }
 
   private parseXml(xml: string): RssFeed {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useDeferredValue, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,12 +11,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   ArrowLeft, ChevronLeft, ChevronRight, Trash2, ExternalLink,
   Play, Pause, Settings, ArrowUpDown, AlertTriangle, Wrench, CheckSquare, RefreshCw,
+  Search, Rss, FolderOpen, Info,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   useEpisodes, useDeleteEpisode, useBulkDeleteEpisodes,
   useCleanupAge, useCleanupKeepLast, useOrphanedEpisodes,
   useUnavailableEpisodes, useCleanupUnavailable, useRefetchMetadata,
+  useFeedRss,
 } from '@/hooks/use-episodes';
 import { api } from '@/lib/api';
 import { useConfig } from '@/hooks/use-settings';
@@ -45,6 +47,120 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric',
   });
+}
+
+// --- Episode Detail Modal ---
+function EpisodeDetailModal({ episode, feedId, hostname, onClose }: {
+  episode: Episode | null;
+  feedId: string;
+  hostname: string;
+  onClose: () => void;
+}) {
+  const player = usePlayerContext();
+  if (!episode) return null;
+
+  const fileUrl = `${hostname}/${feedId}/${episode.filename}`;
+
+  return (
+    <Dialog open={!!episode} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="pr-6 leading-snug">{episode.title || episode.filename}</DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {episode.thumbnailUrl && (
+            <img
+              src={episode.thumbnailUrl}
+              alt={episode.title}
+              className="w-full max-h-52 object-cover rounded-md"
+            />
+          )}
+          <div className="flex flex-wrap gap-2 items-center">
+            <Badge variant="outline">{episode.format.toUpperCase()}</Badge>
+            {episode.duration && <Badge variant="secondary">{formatDuration(episode.duration)}</Badge>}
+            <span className="text-sm text-muted-foreground">{formatBytes(episode.fileSizeBytes)}</span>
+            {episode.pubDate && (
+              <span className="text-sm text-muted-foreground">Published {formatDate(episode.pubDate)}</span>
+            )}
+            <span className="text-sm text-muted-foreground">Downloaded {formatDate(episode.modifiedAt)}</span>
+            {episode.inRss === false && (
+              <Badge variant="outline" className="text-yellow-600 border-yellow-300">Not in RSS</Badge>
+            )}
+          </div>
+          {episode.description && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{episode.description}</p>
+            </div>
+          )}
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">File</p>
+            <p className="text-xs font-mono text-muted-foreground break-all">{episode.filename}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 pt-2 border-t">
+          <Button
+            size="sm"
+            onClick={() => player.play(fileUrl, episode.title || episode.filename, feedId, episode.filename)}
+          >
+            {player.track?.filename === episode.filename && player.playing
+              ? <><Pause className="mr-1 h-3.5 w-3.5" />Pause</>
+              : <><Play className="mr-1 h-3.5 w-3.5" />Play</>}
+          </Button>
+          <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+            <Button size="sm" variant="outline">
+              <ExternalLink className="mr-1 h-3.5 w-3.5" />Direct link
+            </Button>
+          </a>
+          {episode.episodeLink && (
+            <a href={episode.episodeLink} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="outline">
+                <ExternalLink className="mr-1 h-3.5 w-3.5" />YouTube
+              </Button>
+            </a>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- RSS Viewer Modal ---
+function RssViewerModal({ feedId, hostname }: { feedId: string; hostname: string }) {
+  const [open, setOpen] = useState(false);
+  const { data: xml, isLoading, error } = useFeedRss(feedId, open);
+  const rssUrl = `${hostname}/${feedId}.xml`;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Rss className="mr-2 h-4 w-4" />
+          RSS
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>RSS Feed — {feedId}</DialogTitle>
+          <DialogDescription className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs">{rssUrl}</span>
+            <a href={rssUrl} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">
+                <ExternalLink className="mr-1 h-3 w-3" />Open in new tab
+              </Button>
+            </a>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-auto rounded-md border bg-muted/30 p-3">
+          {isLoading && <p className="text-sm text-muted-foreground">Loading RSS...</p>}
+          {error && <p className="text-sm text-destructive">Failed to load RSS feed. Is the Podsync server URL configured correctly?</p>}
+          {xml && (
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all leading-relaxed">{xml}</pre>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // --- Single Delete Dialog ---
@@ -76,6 +192,9 @@ function EpisodeDeleteDialog({ episode, feedId }: { episode: Episode; feedId: st
             Delete "{episode.title || episode.filename}"? This removes the downloaded file permanently.
           </DialogDescription>
         </DialogHeader>
+        <p className="text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+          If this episode is still within the feed's page_size, Podsync will re-download it on the next sync.
+        </p>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>Delete</Button>
@@ -172,6 +291,13 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
     setShowOrphans(false);
   };
 
+  const redownloadWarning = (
+    <p className="text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-2 flex gap-1.5">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      Podsync will re-download deleted episodes that are still within the feed's page_size on next sync.
+    </p>
+  );
+
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setShowOrphans(false); setShowUnavailable(false); } }}>
       <DialogTrigger asChild>
@@ -196,6 +322,7 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
                 Delete
               </Button>
             </div>
+            {redownloadWarning}
           </div>
 
           {/* Keep last N */}
@@ -208,12 +335,13 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
                 Delete rest
               </Button>
             </div>
+            {redownloadWarning}
           </div>
 
           {/* Orphaned files */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Missing from RSS</Label>
-            <p className="text-xs text-muted-foreground">Find downloaded files that are no longer in the podcast feed.</p>
+            <p className="text-xs text-muted-foreground">Find downloaded files no longer in the feed. Safe to delete — Podsync won't re-download them.</p>
             {!showOrphans ? (
               <Button size="sm" variant="outline" onClick={() => setShowOrphans(true)}>
                 Scan for orphans
@@ -242,10 +370,10 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
             )}
           </div>
 
-          {/* Unavailable episodes (not in RSS + yt-dlp failed) */}
+          {/* Unavailable episodes */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Unavailable source videos</Label>
-            <p className="text-xs text-muted-foreground">Find files not in the feed where the source video is confirmed gone (yt-dlp lookup failed).</p>
+            <p className="text-xs text-muted-foreground">Find files not in the feed where the source video is confirmed gone (yt-dlp lookup failed). Safe to delete.</p>
             {!showUnavailable ? (
               <Button size="sm" variant="outline" onClick={() => setShowUnavailable(true)}>
                 Scan for unavailable
@@ -257,7 +385,7 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
                 <p className="text-sm text-green-600">No unavailable episodes found.</p>
                 {(unavailableData?.unchecked ?? 0) > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {unavailableData!.unchecked} orphaned episode{unavailableData!.unchecked !== 1 ? 's' : ''} not yet checked by yt-dlp — metadata will be fetched in the background.
+                    {unavailableData!.unchecked} orphaned episode{unavailableData!.unchecked !== 1 ? 's' : ''} not yet checked — metadata will be fetched in the background.
                   </p>
                 )}
               </div>
@@ -307,7 +435,7 @@ function SortHeader({
       >
         {label}
         <ArrowUpDown className={`h-3 w-3 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`} />
-        {active && <span className="text-[10px]">{currentOrder === 'asc' ? '\u2191' : '\u2193'}</span>}
+        {active && <span className="text-[10px]">{currentOrder === 'asc' ? '↑' : '↓'}</span>}
       </button>
     </TableHead>
   );
@@ -322,8 +450,16 @@ export default function EpisodesPage() {
   const [order, setOrder] = useState('desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
+  const deferredSearch = useDeferredValue(search);
 
-  const { data, isLoading } = useEpisodes(id!, page, pageSize, sort, order);
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [deferredSearch]);
+
+  const { data, isLoading } = useEpisodes(id!, page, pageSize, sort, order, deferredSearch);
   const { data: config } = useConfig();
   const player = usePlayerContext();
   const bulkDelete = useBulkDeleteEpisodes(id!);
@@ -337,6 +473,7 @@ export default function EpisodesPage() {
   });
 
   const hostname = config?.server?.hostname || 'http://localhost:8080';
+  const feedDirUrl = `${hostname}/${id}/`;
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0;
 
   const handleSort = (field: string) => {
@@ -381,16 +518,15 @@ export default function EpisodesPage() {
 
   const handleBulkDelete = async () => {
     const filenames = selectAll
-      ? undefined // handled server-side — we'll use a special flag
+      ? undefined
       : Array.from(selected);
 
     if (!filenames?.length && !selectAll) return;
 
-    // For "select all across pages" we need to fetch all filenames first
     if (selectAll) {
       try {
         const allEpisodes: any = await api.get(
-          `/feeds/${id}/episodes?page=1&pageSize=10000&sort=${sort}&order=${order}`,
+          `/feeds/${id}/episodes?page=1&pageSize=10000&sort=${sort}&order=${order}${deferredSearch ? `&search=${encodeURIComponent(deferredSearch)}` : ''}`,
         );
         const allFilenames = allEpisodes.episodes.map((e: any) => e.filename);
         const result = await bulkDelete.mutateAsync(allFilenames);
@@ -415,7 +551,7 @@ export default function EpisodesPage() {
   const hasSelection = selected.size > 0 || selectAll;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -428,7 +564,11 @@ export default function EpisodesPage() {
               <span className="ml-2 text-sm font-normal text-muted-foreground">({id})</span>
             )}
           </h2>
-          {data && <Badge variant="secondary">{data.total} episodes</Badge>}
+          {data && (
+            <Badge variant="secondary">
+              {deferredSearch ? `${data.total} results` : `${data.total} episodes`}
+            </Badge>
+          )}
           {metaStatus && metaStatus.queued > 0 && (
             <Badge variant="outline" className="text-xs animate-pulse">
               Fetching metadata... ({metaStatus.queued} remaining)
@@ -436,6 +576,13 @@ export default function EpisodesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <RssViewerModal feedId={id!} hostname={hostname} />
+          <a href={feedDirUrl} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm" title="Open feed directory in Podsync">
+              <FolderOpen className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Folder</span>
+            </Button>
+          </a>
           <CleanupDialog feedId={id!} total={data?.total || 0} />
           <Link to={`/feeds/${id}/settings`}>
             <Button variant="outline" size="sm">
@@ -444,6 +591,25 @@ export default function EpisodesPage() {
             </Button>
           </Link>
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by title or description..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Bulk action bar */}
@@ -473,6 +639,9 @@ export default function EpisodesPage() {
                     Delete {selectAll ? `all ${data?.total}` : selected.size} episodes? This cannot be undone.
                   </DialogDescription>
                 </DialogHeader>
+                <p className="text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+                  Podsync will re-download episodes still within the feed's page_size on next sync.
+                </p>
                 <DialogFooter>
                   <Button variant="destructive" onClick={handleBulkDelete} disabled={bulkDelete.isPending}>
                     Delete
@@ -495,7 +664,9 @@ export default function EpisodesPage() {
               {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
             </div>
           ) : data?.episodes.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">No episodes downloaded yet.</div>
+            <div className="p-12 text-center text-muted-foreground">
+              {deferredSearch ? `No episodes match "${deferredSearch}".` : 'No episodes downloaded yet.'}
+            </div>
           ) : (
             <div className="overflow-x-auto">
             <Table>
@@ -515,7 +686,7 @@ export default function EpisodesPage() {
                   <TableHead className="hidden w-20 text-right md:table-cell">Duration</TableHead>
                   <SortHeader label="Published" field="pubDate" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-28 whitespace-nowrap md:table-cell" />
                   <SortHeader label="Downloaded" field="date" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-28 whitespace-nowrap lg:table-cell" />
-                  <TableHead className="w-16"></TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -533,15 +704,24 @@ export default function EpisodesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="space-y-0.5">
-                          <div className="font-medium text-sm">{ep.title || ep.filename}</div>
-                          <div className="flex items-center gap-2">
+                          {/* Clickable title opens detail modal */}
+                          <button
+                            className="font-medium text-sm text-left hover:text-primary transition-colors line-clamp-2"
+                            onClick={() => setSelectedEpisode(ep)}
+                          >
+                            {ep.title || ep.filename}
+                          </button>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Filename → opens Podsync feed directory */}
                             <a
-                              href={`${hostname}/${id}/${ep.filename}`}
+                              href={feedDirUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-xs text-muted-foreground hover:text-blue-500 font-mono"
+                              className="text-xs text-muted-foreground hover:text-blue-500 font-mono inline-flex items-center gap-0.5"
+                              title="Open feed folder in Podsync"
                             >
+                              <FolderOpen className="h-3 w-3" />
                               {ep.filename}
                             </a>
                             {ep.episodeLink && (
@@ -567,8 +747,9 @@ export default function EpisodesPage() {
                               </Badge>
                             )}
                           </div>
+                          {/* Truncated description — click title for full */}
                           {ep.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 max-w-full sm:max-w-xl cursor-default" title={ep.description}>{ep.description}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2 max-w-full sm:max-w-xl">{ep.description}</p>
                           )}
                         </div>
                       </TableCell>
@@ -578,6 +759,15 @@ export default function EpisodesPage() {
                       <TableCell className="hidden text-muted-foreground whitespace-nowrap md:table-cell">{ep.pubDate ? formatDate(ep.pubDate) : '--'}</TableCell>
                       <TableCell className="hidden text-muted-foreground whitespace-nowrap lg:table-cell">{formatDate(ep.modifiedAt)}</TableCell>
                       <TableCell className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          title="View episode details"
+                          onClick={() => setSelectedEpisode(ep)}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
                         <RefetchMetadataButton episode={ep} feedId={id!} />
                         <EpisodeDeleteDialog episode={ep} feedId={id!} />
                       </TableCell>
@@ -603,6 +793,14 @@ export default function EpisodesPage() {
           </Button>
         </div>
       )}
+
+      {/* Episode Detail Modal */}
+      <EpisodeDetailModal
+        episode={selectedEpisode}
+        feedId={id!}
+        hostname={hostname}
+        onClose={() => setSelectedEpisode(null)}
+      />
     </div>
   );
 }
