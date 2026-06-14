@@ -16,17 +16,41 @@ export default function MiniPlayer() {
 
   if (!track) return null;
 
+  // Video: show only track title — controls live on the VideoPlayerOverlay (bottom-right)
+  if (isVideo) {
+    return (
+      <div className="border-t px-4 py-3">
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <Video className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <p className="text-xs font-medium truncate text-muted-foreground" title={track.title}>
+              {track.title}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 flex-shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={stop}
+            title="Close player"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-0.5 pl-[18px]">Controls on video overlay ↘</p>
+      </div>
+    );
+  }
+
+  // Audio: full mini player with seek and controls
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className="border-t px-4 py-3 space-y-2">
       <div className="flex items-center justify-between gap-1">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          {isVideo && <Video className="h-3 w-3 shrink-0 text-muted-foreground" />}
-          <p className="text-xs font-medium truncate" title={track.title}>
-            {track.title}
-          </p>
-        </div>
+        <p className="text-xs font-medium truncate flex-1" title={track.title}>
+          {track.title}
+        </p>
         <Button
           variant="ghost"
           size="icon"
@@ -43,8 +67,7 @@ export default function MiniPlayer() {
         className="w-full h-1.5 bg-muted rounded-full cursor-pointer"
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
-          const pct = (e.clientX - rect.left) / rect.width;
-          seek(pct * duration);
+          seek((e.clientX - rect.left) / rect.width * duration);
         }}
       >
         <div

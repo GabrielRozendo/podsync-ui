@@ -311,6 +311,9 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
           <DialogTitle>Episode Cleanup</DialogTitle>
           <DialogDescription>{total} episodes on disk</DialogDescription>
         </DialogHeader>
+
+        {redownloadWarning}
+
         <div className="space-y-6 py-2">
           {/* Age-based */}
           <div className="space-y-2">
@@ -322,7 +325,6 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
                 Delete
               </Button>
             </div>
-            {redownloadWarning}
           </div>
 
           {/* Keep last N */}
@@ -335,7 +337,6 @@ function CleanupDialog({ feedId, total }: { feedId: string; total: number }) {
                 Delete rest
               </Button>
             </div>
-            {redownloadWarning}
           </div>
 
           {/* Orphaned files */}
