@@ -135,7 +135,7 @@ export default function Sidebar() {
           {health?.version && (
             <div className="px-2">
               <p className="text-xs text-muted-foreground">
-                Build: {health.version.commit}
+                Build: {health.version.commit.slice(0, 7)}
               </p>
               {health.version.buildTime && (
                 <p className="text-xs text-muted-foreground">
