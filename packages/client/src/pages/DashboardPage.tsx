@@ -261,7 +261,7 @@ export default function DashboardPage() {
   };
 
   const sortedFeeds = feedHealth ? sortFeeds(feedHealth, feedSort, feedOrder) : [];
-  const totalSize = feedHealth?.reduce((sum, f) => sum + f.sizeBytes, 0) ?? 0;
+  const maxFeedSize = feedHealth?.reduce((max, f) => Math.max(max, f.sizeBytes), 0) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -371,7 +371,7 @@ export default function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {sortedFeeds.map((feed) => {
-                  const pct = totalSize > 0 ? (feed.sizeBytes / totalSize) * 100 : 0;
+                  const barWidth = maxFeedSize > 0 ? (feed.sizeBytes / maxFeedSize) * 100 : 0;
                   return (
                   <TableRow key={feed.id}>
                     <TableCell>
@@ -397,11 +397,13 @@ export default function DashboardPage() {
                     <TableCell>
                       <div className="space-y-1 min-w-[7rem]">
                         <div className="text-sm text-muted-foreground">{formatBytes(feed.sizeBytes)}</div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary transition-all"
-                            style={{ width: `${Math.max(pct, 0.5)}%` }}
-                          />
+                        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                          {barWidth > 0 && (
+                            <div
+                              className="h-full rounded-full bg-primary transition-all"
+                              style={{ width: `${barWidth}%` }}
+                            />
+                          )}
                         </div>
                       </div>
                     </TableCell>

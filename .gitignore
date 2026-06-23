@@ -7,3 +7,5 @@ dist/
 *.tsbuildinfo
 sidecar-config/auth.json
 .claude/
+
+podsync-generator/
