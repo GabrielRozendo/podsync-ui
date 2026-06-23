@@ -2,6 +2,12 @@ import { FastifyPluginAsync } from 'fastify';
 import { tomlService } from '../services/toml.service.js';
 import { episodeService } from '../services/episode.service.js';
 import { rssService } from '../services/rss.service.js';
+import {
+  findAllOrphanedEpisodes,
+  findAllUnavailableEpisodes,
+  deleteAllOrphanedEpisodes,
+  deleteAllUnavailableEpisodes,
+} from '../services/cleanup.service.js';
 import { requireScope } from '../middleware/scope.guard.js';
 
 export const configRoutes: FastifyPluginAsync = async (app) => {
@@ -102,6 +108,26 @@ export const configRoutes: FastifyPluginAsync = async (app) => {
       };
     });
   });
+
+  app.get('/dashboard/cleanup/orphaned', {
+    schema: { tags: ['Dashboard'], summary: 'Find orphaned episodes across all feeds' },
+    preHandler: requireScope('episodes:read'),
+  }, async () => findAllOrphanedEpisodes());
+
+  app.post('/dashboard/cleanup/orphaned', {
+    schema: { tags: ['Dashboard'], summary: 'Delete orphaned episodes across all feeds' },
+    preHandler: requireScope('episodes:write'),
+  }, async () => deleteAllOrphanedEpisodes());
+
+  app.get('/dashboard/cleanup/unavailable', {
+    schema: { tags: ['Dashboard'], summary: 'Find unavailable episodes across all feeds' },
+    preHandler: requireScope('episodes:read'),
+  }, async () => findAllUnavailableEpisodes());
+
+  app.post('/dashboard/cleanup/unavailable', {
+    schema: { tags: ['Dashboard'], summary: 'Delete unavailable episodes across all feeds' },
+    preHandler: requireScope('episodes:write'),
+  }, async () => deleteAllUnavailableEpisodes());
 };
 
 function parsePeriodMs(period: string): number | null {

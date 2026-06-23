@@ -125,3 +125,51 @@ export function useOrphanedEpisodes(feedId: string, enabled: boolean = false) {
     enabled: !!feedId && enabled,
   });
 }
+
+export function useGlobalOrphanedEpisodes(enabled: boolean = false) {
+  return useQuery<{
+    orphaned: any[];
+    totalOnDisk: number;
+    totalInRss: number;
+    feedErrors: { feedId: string; message: string }[];
+  }>({
+    queryKey: ['dashboard', 'cleanup', 'orphaned'],
+    queryFn: () => api.get('/dashboard/cleanup/orphaned'),
+    enabled,
+  });
+}
+
+export function useGlobalUnavailableEpisodes(enabled: boolean = false) {
+  return useQuery<{
+    unavailable: any[];
+    unchecked: number;
+    totalOnDisk: number;
+    totalInRss: number;
+  }>({
+    queryKey: ['dashboard', 'cleanup', 'unavailable'],
+    queryFn: () => api.get('/dashboard/cleanup/unavailable'),
+    enabled,
+  });
+}
+
+export function useGlobalCleanupOrphans() {
+  const queryClient = useQueryClient();
+  return useMutation<{ deleted: number; errors?: string[]; total: number }, Error, void>({
+    mutationFn: () => api.post('/dashboard/cleanup/orphaned'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useGlobalCleanupUnavailable() {
+  const queryClient = useQueryClient();
+  return useMutation<{ deleted: number; errors?: string[]; total: number }, Error, void>({
+    mutationFn: () => api.post('/dashboard/cleanup/unavailable'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episodes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}

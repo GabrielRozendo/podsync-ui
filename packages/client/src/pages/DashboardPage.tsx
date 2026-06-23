@@ -2,12 +2,22 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Rss, HardDrive, FileAudio, AlertTriangle, CheckCircle, ArrowUpDown } from 'lucide-react';
+import { Rss, HardDrive, FileAudio, AlertTriangle, CheckCircle, ArrowUpDown, Wrench } from 'lucide-react';
 import { useDockerStatus } from '@/hooks/use-docker';
 import { useDashboard, useFeedHealth } from '@/hooks/use-settings';
 import type { FeedHealthInfo } from '@/hooks/use-settings';
+import {
+  useGlobalOrphanedEpisodes,
+  useGlobalUnavailableEpisodes,
+  useGlobalCleanupOrphans,
+  useGlobalCleanupUnavailable,
+} from '@/hooks/use-episodes';
+import { toast } from 'sonner';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -36,7 +46,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-type SortField = 'title' | 'format' | 'lastBuildDate' | 'episodesInRss' | 'episodesOnDisk' | 'stale';
+type SortField = 'title' | 'format' | 'lastBuildDate' | 'episodesInRss' | 'episodesOnDisk' | 'sizeBytes' | 'stale';
 
 function sortFeeds(feeds: FeedHealthInfo[], field: SortField, order: 'asc' | 'desc'): FeedHealthInfo[] {
   const dir = order === 'asc' ? 1 : -1;
@@ -55,6 +65,8 @@ function sortFeeds(feeds: FeedHealthInfo[], field: SortField, order: 'asc' | 'de
         return ((a.episodesInRss ?? -1) - (b.episodesInRss ?? -1)) * dir;
       case 'episodesOnDisk':
         return (a.episodesOnDisk - b.episodesOnDisk) * dir;
+      case 'sizeBytes':
+        return (a.sizeBytes - b.sizeBytes) * dir;
       case 'stale':
         return ((a.stale ? 1 : 0) - (b.stale ? 1 : 0)) * dir;
       default:
@@ -84,20 +96,160 @@ function SortableHead({
   );
 }
 
+function DashboardCleanupDialog({ totalEpisodes }: { totalEpisodes: number }) {
+  const [open, setOpen] = useState(false);
+  const [showOrphans, setShowOrphans] = useState(false);
+  const [showUnavailable, setShowUnavailable] = useState(false);
+
+  const { data: orphanData, isLoading: orphansLoading } = useGlobalOrphanedEpisodes(showOrphans);
+  const { data: unavailableData, isLoading: unavailableLoading } = useGlobalUnavailableEpisodes(showUnavailable);
+  const cleanupOrphans = useGlobalCleanupOrphans();
+  const cleanupUnavailable = useGlobalCleanupUnavailable();
+
+  const handleDeleteOrphans = async () => {
+    if (!orphanData?.orphaned.length) return;
+    const result = await cleanupOrphans.mutateAsync();
+    if (result.errors?.length) {
+      toast.warning(`Deleted ${result.deleted}, ${result.errors.length} failed`, {
+        description: result.errors.slice(0, 3).join('\n'),
+      });
+    } else {
+      toast.success(`Deleted ${result.deleted} orphaned episodes across all feeds`);
+    }
+    setShowOrphans(false);
+  };
+
+  const handleDeleteUnavailable = async () => {
+    const result = await cleanupUnavailable.mutateAsync();
+    if (result.errors?.length) {
+      toast.warning(`Deleted ${result.deleted}, ${result.errors.length} failed`, {
+        description: result.errors.slice(0, 3).join('\n'),
+      });
+    } else {
+      toast.success(`Deleted ${result.deleted} unavailable episodes across all feeds`);
+    }
+    setShowUnavailable(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setShowOrphans(false); setShowUnavailable(false); } }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Wrench className="mr-2 h-4 w-4" />
+          Cleanup
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Cleanup All Feeds</DialogTitle>
+          <DialogDescription>{totalEpisodes} episodes on disk across all feeds</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-2">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Missing from RSS</Label>
+            <p className="text-xs text-muted-foreground">Find downloaded files no longer in any feed. Safe to delete — Podsync won&apos;t re-download them.</p>
+            {!showOrphans ? (
+              <Button size="sm" variant="outline" onClick={() => setShowOrphans(true)}>
+                Scan all feeds
+              </Button>
+            ) : orphansLoading ? (
+              <p className="text-sm text-muted-foreground">Scanning all feeds...</p>
+            ) : !orphanData?.orphaned.length && !orphanData?.feedErrors.length ? (
+              <p className="text-sm text-green-600">No orphaned files found.</p>
+            ) : (
+              <div className="space-y-2">
+                {orphanData?.feedErrors.map((err) => (
+                  <p key={err.feedId} className="text-sm text-muted-foreground">
+                    {err.feedId}: {err.message}
+                  </p>
+                ))}
+                {orphanData?.orphaned.length ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm">
+                        {orphanData.orphaned.length} orphaned files ({formatBytes(orphanData.orphaned.reduce((s, e) => s + e.fileSizeBytes, 0))})
+                      </span>
+                    </div>
+                    <div className="max-h-32 overflow-y-auto text-xs font-mono text-muted-foreground space-y-0.5">
+                      {orphanData.orphaned.map((e) => (
+                        <div key={`${e.feedId}/${e.filename}`}>{e.feedId}/{e.filename} ({formatBytes(e.fileSizeBytes)})</div>
+                      ))}
+                    </div>
+                    <Button size="sm" variant="destructive" onClick={handleDeleteOrphans} disabled={cleanupOrphans.isPending}>
+                      Delete all orphans
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-green-600">No orphaned files found in scannable feeds.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Unavailable source videos</Label>
+            <p className="text-xs text-muted-foreground">Find files not in any feed where the source video is confirmed gone (yt-dlp lookup failed). Safe to delete.</p>
+            {!showUnavailable ? (
+              <Button size="sm" variant="outline" onClick={() => setShowUnavailable(true)}>
+                Scan all feeds
+              </Button>
+            ) : unavailableLoading ? (
+              <p className="text-sm text-muted-foreground">Scanning all feeds...</p>
+            ) : unavailableData?.unavailable.length === 0 ? (
+              <div className="space-y-1">
+                <p className="text-sm text-green-600">No unavailable episodes found.</p>
+                {(unavailableData?.unchecked ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {unavailableData!.unchecked} orphaned episode{unavailableData!.unchecked !== 1 ? 's' : ''} not yet checked — metadata will be fetched in the background.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="text-sm">
+                    {unavailableData?.unavailable.length} unavailable ({formatBytes(unavailableData?.unavailable.reduce((s, e) => s + e.fileSizeBytes, 0) || 0)})
+                  </span>
+                </div>
+                {(unavailableData?.unchecked ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {unavailableData!.unchecked} more orphan{unavailableData!.unchecked !== 1 ? 's' : ''} still pending yt-dlp check.
+                  </p>
+                )}
+                <div className="max-h-32 overflow-y-auto text-xs font-mono text-muted-foreground space-y-0.5">
+                  {unavailableData?.unavailable.map((e) => (
+                    <div key={`${e.feedId}/${e.filename}`}>{e.feedId}/{e.filename} ({formatBytes(e.fileSizeBytes)})</div>
+                  ))}
+                </div>
+                <Button size="sm" variant="destructive" onClick={handleDeleteUnavailable} disabled={cleanupUnavailable.isPending}>
+                  Delete all unavailable
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function DashboardPage() {
   const { data: status, isLoading: statusLoading } = useDockerStatus();
   const { data: dashboard, isLoading: dashLoading } = useDashboard();
   const { data: feedHealth, isLoading: healthLoading } = useFeedHealth();
 
-  const [healthSort, setHealthSort] = useState<SortField>('title');
-  const [healthOrder, setHealthOrder] = useState<'asc' | 'desc'>('asc');
+  const [feedSort, setFeedSort] = useState<SortField>('title');
+  const [feedOrder, setFeedOrder] = useState<'asc' | 'desc'>('asc');
 
   const handleSort = (field: SortField) => {
-    if (healthSort === field) {
-      setHealthOrder((o) => o === 'asc' ? 'desc' : 'asc');
+    if (feedSort === field) {
+      setFeedOrder((o) => o === 'asc' ? 'desc' : 'asc');
     } else {
-      setHealthSort(field);
-      setHealthOrder('asc');
+      setFeedSort(field);
+      setFeedOrder('asc');
     }
   };
 
@@ -108,9 +260,8 @@ export default function DashboardPage() {
     unknown: 'bg-gray-500',
   };
 
-  const sortedHealth = feedHealth ? sortFeeds(feedHealth, healthSort, healthOrder) : [];
-  const sortedBySize = feedHealth ? [...feedHealth].sort((a, b) => b.sizeBytes - a.sizeBytes) : [];
-  const totalSize = sortedBySize.reduce((sum, f) => sum + f.sizeBytes, 0);
+  const sortedFeeds = feedHealth ? sortFeeds(feedHealth, feedSort, feedOrder) : [];
+  const totalSize = feedHealth?.reduce((sum, f) => sum + f.sizeBytes, 0) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -189,10 +340,13 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Feed Health */}
+      {/* Feeds */}
       <Card>
-        <CardHeader>
-          <CardTitle>Feed Health</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>Feeds</CardTitle>
+          {!healthLoading && (feedHealth?.length ?? 0) > 0 && (
+            <DashboardCleanupDialog totalEpisodes={dashboard?.totalEpisodes ?? 0} />
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {healthLoading ? (
@@ -206,16 +360,19 @@ export default function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead label="Feed" field="title" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} />
-                  <SortableHead label="Format" field="format" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-24" />
-                  <SortableHead label="Last Updated" field="lastBuildDate" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-28" />
-                  <SortableHead label="In RSS" field="episodesInRss" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-20 text-right" />
-                  <SortableHead label="On Disk" field="episodesOnDisk" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-20 text-right" />
-                  <SortableHead label="Status" field="stale" currentSort={healthSort} currentOrder={healthOrder} onSort={handleSort} className="w-20 text-right" />
+                  <SortableHead label="Feed" field="title" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} />
+                  <SortableHead label="Format" field="format" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} className="w-24" />
+                  <SortableHead label="Last Updated" field="lastBuildDate" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} className="w-28" />
+                  <SortableHead label="In RSS" field="episodesInRss" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} className="w-20 text-right" />
+                  <SortableHead label="On Disk" field="episodesOnDisk" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} className="w-20 text-right" />
+                  <SortableHead label="Storage" field="sizeBytes" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} className="w-36" />
+                  <SortableHead label="Status" field="stale" currentSort={feedSort} currentOrder={feedOrder} onSort={handleSort} className="w-20 text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedHealth.map((feed) => (
+                {sortedFeeds.map((feed) => {
+                  const pct = totalSize > 0 ? (feed.sizeBytes / totalSize) * 100 : 0;
+                  return (
                   <TableRow key={feed.id}>
                     <TableCell>
                       <Link to={`/feeds/${feed.id}`} className="hover:underline font-medium">
@@ -237,6 +394,17 @@ export default function DashboardPage() {
                     <TableCell className="text-right text-muted-foreground">
                       {feed.episodesOnDisk}
                     </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 min-w-[7rem]">
+                        <div className="text-sm text-muted-foreground">{formatBytes(feed.sizeBytes)}</div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${Math.max(pct, 0.5)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       {feed.stale ? (
                         <Badge variant="outline" className="text-yellow-600 border-yellow-300 gap-1">
@@ -251,49 +419,10 @@ export default function DashboardPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Per-Feed Storage Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Storage by Feed</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {healthLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
-            </div>
-          ) : !sortedBySize.length ? (
-            <div className="text-center text-muted-foreground">No feed data.</div>
-          ) : (
-            <div className="space-y-3">
-              {sortedBySize.map((feed) => {
-                const pct = totalSize > 0 ? (feed.sizeBytes / totalSize) * 100 : 0;
-                return (
-                  <div key={feed.id} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <Link to={`/feeds/${feed.id}`} className="hover:underline font-medium truncate max-w-[50%] sm:max-w-[60%]">
-                        {feed.title}
-                      </Link>
-                      <span className="text-muted-foreground whitespace-nowrap ml-2">
-                        {formatBytes(feed.sizeBytes)} ({feed.episodesOnDisk} eps)
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${Math.max(pct, 0.5)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )}
         </CardContent>
