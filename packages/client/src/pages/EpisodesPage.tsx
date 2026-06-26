@@ -21,6 +21,7 @@ import {
   useFeedRss,
 } from '@/hooks/use-episodes';
 import { api } from '@/lib/api';
+import { detectFeedSource, FeedSourceIcon } from '@/lib/feed-source';
 import { useConfig } from '@/hooks/use-settings';
 import { usePlayerContext } from '@/components/player/PlayerContext';
 import { toast } from 'sonner';
@@ -475,6 +476,7 @@ export default function EpisodesPage() {
 
   const hostname = config?.server?.hostname || 'http://localhost:8080';
   const feedDirUrl = `${hostname}/${id}/`;
+  const feedSource = detectFeedSource(config?.feeds?.[id!]?.url ?? '');
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0;
 
   const handleSort = (field: string) => {
@@ -577,6 +579,14 @@ export default function EpisodesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {feedSource && (
+            <a href={feedSource.url} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" title={`Open on ${feedSource.label}`}>
+                <FeedSourceIcon platform={feedSource.platform} className="h-4 w-4" />
+                <span className="sr-only">{feedSource.label}</span>
+              </Button>
+            </a>
+          )}
           <RssViewerModal feedId={id!} hostname={hostname} />
           <a href={feedDirUrl} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" size="sm" title="Open feed directory in Podsync">
@@ -682,9 +692,9 @@ export default function EpisodesPage() {
                     />
                   </TableHead>
                   <SortHeader label="Episode" field="title" currentSort={sort} currentOrder={order} onSort={handleSort} />
-                  <TableHead className="hidden w-20 sm:table-cell">Format</TableHead>
+                  <SortHeader label="Format" field="format" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-20 sm:table-cell" />
                   <SortHeader label="Size" field="size" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-20 text-right sm:table-cell" />
-                  <TableHead className="hidden w-20 text-right md:table-cell">Duration</TableHead>
+                  <SortHeader label="Duration" field="duration" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-20 text-right md:table-cell" />
                   <SortHeader label="Published" field="pubDate" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-28 whitespace-nowrap md:table-cell" />
                   <SortHeader label="Downloaded" field="date" currentSort={sort} currentOrder={order} onSort={handleSort} className="hidden w-28 whitespace-nowrap lg:table-cell" />
                   <TableHead className="w-20"></TableHead>

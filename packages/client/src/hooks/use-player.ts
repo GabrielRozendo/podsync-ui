@@ -42,10 +42,18 @@ function loadTime(): number {
   return 0;
 }
 
+interface PendingMedia {
+  src: string;
+  time: number;
+  autoplay: boolean;
+}
+
 export function usePlayer() {
-  // Single <video> element handles both audio and video files.
-  // The ref is populated by AppShell which always renders <video ref={videoRef}>.
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // A single <video> element handles both audio and video files. The element is
+  // recreated by AppShell whenever it toggles between the hidden (audio) and
+  // visible (video overlay) branches, so we attach listeners via a callback ref
+  // that re-binds every time the underlying DOM node changes.
+  const mediaRef = useRef<HTMLVideoElement | null>(null);
   const [track, setTrack] = useState<PlayerState | null>(loadState);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -53,95 +61,145 @@ export function usePlayer() {
 
   const isVideo = track ? isVideoFilename(track.filename) : false;
 
-  // Setup event listeners once the video element is in the DOM
-  useEffect(() => {
-    const media = videoRef.current;
-    if (!media) return;
+  // What a freshly-mounted <video> node should be initialized with. Seeded from
+  // localStorage so a reload restores the last track/position without autoplay.
+  const pendingRef = useRef<PendingMedia | null>(
+    (() => {
+      const saved = loadState();
+      return saved ? { src: saved.src, time: loadTime(), autoplay: false } : null;
+    })(),
+  );
 
-    const onTimeUpdate = () => setCurrentTime(media.currentTime);
-    const onDurationChange = () => setDuration(media.duration || 0);
-    const onEnded = () => setPlaying(false);
-    const onPause = () => setPlaying(false);
-    const onPlay = () => setPlaying(true);
+  // Stable event handlers so we can add/remove them across element swaps.
+  const handlersRef = useRef<Record<string, () => void> | null>(null);
+  if (!handlersRef.current) {
+    handlersRef.current = {
+      timeupdate: () => setCurrentTime(mediaRef.current?.currentTime ?? 0),
+      durationchange: () => setDuration(mediaRef.current?.duration || 0),
+      loadedmetadata: () => setDuration(mediaRef.current?.duration || 0),
+      ended: () => setPlaying(false),
+      pause: () => setPlaying(false),
+      play: () => setPlaying(true),
+    };
+  }
 
-    media.addEventListener('timeupdate', onTimeUpdate);
-    media.addEventListener('durationchange', onDurationChange);
-    media.addEventListener('ended', onEnded);
-    media.addEventListener('pause', onPause);
-    media.addEventListener('play', onPlay);
+  const attachHandlers = useCallback((node: HTMLVideoElement) => {
+    const handlers = handlersRef.current!;
+    for (const [event, handler] of Object.entries(handlers)) {
+      node.addEventListener(event, handler);
+    }
+  }, []);
 
-    // Restore previous track position from localStorage
-    const saved = loadState();
-    if (saved) {
-      media.src = saved.src;
-      media.currentTime = loadTime();
+  const detachHandlers = useCallback((node: HTMLVideoElement) => {
+    const handlers = handlersRef.current!;
+    for (const [event, handler] of Object.entries(handlers)) {
+      node.removeEventListener(event, handler);
+    }
+  }, []);
+
+  // Callback ref: React calls this with `null` when the old node unmounts and
+  // with the new node when it mounts. We rebind listeners and re-sync playback
+  // state onto whichever element is currently live.
+  const videoRef = useCallback((node: HTMLVideoElement | null) => {
+    const prev = mediaRef.current;
+    if (prev && prev !== node) {
+      detachHandlers(prev);
+      prev.pause();
     }
 
-    return () => {
-      media.removeEventListener('timeupdate', onTimeUpdate);
-      media.removeEventListener('durationchange', onDurationChange);
-      media.removeEventListener('ended', onEnded);
-      media.removeEventListener('pause', onPause);
-      media.removeEventListener('play', onPlay);
-      media.pause();
-      media.src = '';
-    };
-  }, []);
+    mediaRef.current = node;
+    if (!node) return;
+
+    attachHandlers(node);
+
+    // Initialize the freshly-mounted element from the pending media (either the
+    // current track being played, or the restored track from localStorage).
+    const pending = pendingRef.current;
+    if (pending) {
+      if (node.src !== pending.src) node.src = pending.src;
+      if (pending.time) node.currentTime = pending.time;
+      setCurrentTime(pending.time);
+      setDuration(0);
+      if (pending.autoplay) {
+        void node.play();
+      }
+    }
+  }, [attachHandlers, detachHandlers]);
 
   // Save playback position every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      if (track && videoRef.current) {
-        saveState(track, videoRef.current.currentTime);
+      if (track && mediaRef.current) {
+        saveState(track, mediaRef.current.currentTime);
       }
     }, 5000);
     return () => clearInterval(interval);
   }, [track]);
 
   const play = useCallback((src: string, title: string, feedId: string, filename: string) => {
-    const media = videoRef.current;
-    if (!media) return;
-
-    const newTrack = { src, title, feedId, filename };
+    const media = mediaRef.current;
 
     if (track?.src === src) {
-      if (media.paused) {
-        media.play();
-      } else {
-        media.pause();
+      pendingRef.current = { src, time: media?.currentTime ?? 0, autoplay: true };
+      if (media) {
+        if (media.paused) {
+          void media.play();
+        } else {
+          media.pause();
+        }
       }
-    } else {
-      media.src = src;
-      media.currentTime = 0;
-      media.play();
-      setTrack(newTrack);
-      saveState(newTrack, 0);
+      return;
+    }
+
+    const newTrack = { src, title, feedId, filename };
+    pendingRef.current = { src, time: 0, autoplay: true };
+
+    // Reset stale state immediately so the UI doesn't flash the previous
+    // track's duration/position before the new metadata loads.
+    setDuration(0);
+    setCurrentTime(0);
+    setPlaying(false);
+    setTrack(newTrack);
+    saveState(newTrack, 0);
+
+    // If the element type doesn't change, the same node stays mounted and the
+    // callback ref won't fire — so apply to the current node directly too.
+    if (media) {
+      const wasVideo = track ? isVideoFilename(track.filename) : false;
+      if (wasVideo === isVideoFilename(filename)) {
+        media.src = src;
+        media.currentTime = 0;
+        void media.play();
+      }
     }
   }, [track]);
 
   const togglePlayPause = useCallback(() => {
-    const media = videoRef.current;
+    const media = mediaRef.current;
     if (!media || !track) return;
     if (media.paused) {
-      media.play();
+      void media.play();
     } else {
       media.pause();
     }
   }, [track]);
 
   const seek = useCallback((time: number) => {
-    const media = videoRef.current;
+    const media = mediaRef.current;
     if (!media) return;
     media.currentTime = time;
     setCurrentTime(time);
+    if (pendingRef.current) pendingRef.current.time = time;
   }, []);
 
   const stop = useCallback(() => {
-    const media = videoRef.current;
+    const media = mediaRef.current;
     if (media) {
       media.pause();
-      media.src = '';
+      media.removeAttribute('src');
+      media.load();
     }
+    pendingRef.current = null;
     setTrack(null);
     setPlaying(false);
     setCurrentTime(0);

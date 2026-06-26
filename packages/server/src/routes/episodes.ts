@@ -17,9 +17,41 @@ function isSafePath(base: string, ...segments: string[]): boolean {
   return resolved.startsWith(path.resolve(base) + path.sep);
 }
 
+function parseItunesDuration(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  if (/^\d+$/.test(value)) return parseInt(value, 10);
+  const parts = value.split(':').map(Number);
+  if (parts.some((n) => Number.isNaN(n))) return undefined;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return undefined;
+}
+
+const PROBEABLE_FORMATS = new Set(['mp3', 'mp4', 'm4a', 'ogg', 'opus', 'flac', 'wav', 'aac', 'webm', 'mkv']);
+
+async function probeEpisodeDurations(
+  feedId: string,
+  episodes: Array<{ filename: string; format: string; duration?: number }>,
+): Promise<void> {
+  if (env.mode !== 'local') return;
+  const { createRequire } = await import('module');
+  const require = createRequire(import.meta.url);
+  const mm: any = require('music-metadata');
+  for (const ep of episodes) {
+    if (ep.duration != null || !PROBEABLE_FORMATS.has(ep.format)) continue;
+    try {
+      const fullPath = path.join(env.podsyncDataDir, feedId, ep.filename);
+      const metadata = await mm.parseFile(fullPath);
+      ep.duration = metadata.format.duration;
+    } catch {
+      // Duration unavailable
+    }
+  }
+}
+
 export const episodeRoutes: FastifyPluginAsync = async (app) => {
   // List episodes with RSS enrichment
-  // Supports sorting via query: sort=size|date|pubDate, order=asc|desc
+  // Supports sorting via query: sort=size|date|pubDate|title|format|duration, order=asc|desc
   app.get<{
     Params: { id: string };
     Querystring: { page?: string; pageSize?: string; sort?: string; order?: string; search?: string };
@@ -73,6 +105,9 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
       const ytMeta = metadataMap.get(baseName);
       const youtubeUrl = `https://www.youtube.com/watch?v=${baseName}`;
 
+      const rssDuration = rssEp?.duration ? parseItunesDuration(rssEp.duration) : undefined;
+      const ytDuration = ytMeta?.duration && ytMeta.duration > 0 ? ytMeta.duration : undefined;
+
       return {
         ...ep,
         title: rssEp?.title || ytMeta?.title || undefined,
@@ -80,6 +115,7 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
         episodeLink: rssEp?.link || (ytMeta ? youtubeUrl : undefined),
         thumbnailUrl: rssEp?.imageUrl || ytMeta?.thumbnailUrl || undefined,
         pubDate: rssEp?.pubDate || ytMeta?.uploadDate || undefined,
+        duration: rssDuration ?? ytDuration,
         inRss: rssMap.has(baseName),
         metadataSource: rssEp ? 'rss' : ytMeta?.title ? 'ytdlp' : 'none',
       };
@@ -93,12 +129,20 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
         )
       : enriched;
 
+    if (sort === 'duration') {
+      await probeEpisodeDurations(id, filtered);
+    }
+
     // Sort
     const dir = order === 'asc' ? 1 : -1;
     filtered.sort((a, b) => {
       switch (sort) {
         case 'size':
           return (a.fileSizeBytes - b.fileSizeBytes) * dir;
+        case 'format':
+          return a.format.localeCompare(b.format) * dir;
+        case 'duration':
+          return ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
         case 'pubDate': {
           const aDate = a.pubDate ? new Date(a.pubDate).getTime() : 0;
           const bDate = b.pubDate ? new Date(b.pubDate).getTime() : 0;
@@ -120,25 +164,8 @@ export const episodeRoutes: FastifyPluginAsync = async (app) => {
     const start = (page - 1) * pageSize;
     const episodes = filtered.slice(start, start + pageSize);
 
-    // Probe durations for the current page (local mode only)
-    // Includes audio and common video container formats supported by music-metadata
-    if (env.mode === 'local') {
-      const { createRequire } = await import('module');
-      const require = createRequire(import.meta.url);
-      const PROBEABLE_FORMATS = new Set(['mp3', 'mp4', 'm4a', 'ogg', 'opus', 'flac', 'wav', 'aac', 'webm', 'mkv']);
-      for (const ep of episodes) {
-        if (PROBEABLE_FORMATS.has(ep.format)) {
-          try {
-            const mm: any = require('music-metadata');
-            const fullPath = path.join(env.podsyncDataDir, id, ep.filename);
-            const metadata = await mm.parseFile(fullPath);
-            ep.duration = metadata.format.duration;
-          } catch {
-            // Duration unavailable
-          }
-        }
-      }
-    }
+    // Probe durations for the current page when not already known (local mode only)
+    await probeEpisodeDurations(id, episodes);
 
     return {
       episodes,
